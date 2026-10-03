@@ -123,7 +123,7 @@ const rmW=r=>r.w||ROOM_W, rmH=r=>r.h||ROOM_H;
 const isBigRoom=r=>rmW(r)>ROOM_W||rmH(r)>ROOM_H;
 // 毎階ためしに出す「広い部屋」（THEMES の名前）。増やす／減らす／[]で無効 にできる
 const MINE_CHEST_GUARANTEE=true;   // true: 廃坑の部屋がある階では、宝箱を最低1つ「岩のむこうの宝部屋」に置く
-const BIG_ROOMS=['bigtower','bigmaze','bigring','bigzig','bigcorr','bigblock','bignarrow','bigchapel','bigportrait','bigmine'];   // 狭い通路の広い部屋が中心（ただ広いだけの bigwide / bigtall は外した。戻すならここに足す）   // bigblock = 鉄ドアのある独房ブロック
+const BIG_ROOMS=['bigtower','bigmaze','bigring','bigzig','bigcorr','bigblock','bignarrow','bigchapel','bigportrait','bigmine','bigbelt'];   // 狭い通路の広い部屋が中心（ただ広いだけの bigwide / bigtall は外した。戻すならここに足す）   // bigblock = 鉄ドアのある独房ブロック
 const BLOCK_CHEST_GUARANTEE=true;   // true: 独房ブロックがある階では、宝箱を最低1つ「ベッドのある個室」の中に置く（falseだと、ブロックに宝箱が入るかは運。入る場合は常に個室の中）
 const BIG_FIRST_CHANCE=0.75;   // 1つめの広い部屋が出る確率（そのほかの部屋は、ふつうの部屋のまま）
 const BIG_CHANCE=0.30;         // 2つめ以降の広い部屋が、部屋ごとに出る確率
@@ -178,10 +178,20 @@ const MOVE_DB={
                 oni:{hard:0.12,mid:0.40,speed:150,pj:0.045,gj:0.085},   // hard=16分の高速パターン率／mid=8分中心のパターン率（残りはやさしい）
                 all:true,desc:'てきぜんいんに ダメージ'},
   'りゅうせい':{name:'りゅうせい',power:35, sp:25, color:'#7fe4ff',icon:'❄',
-                bpm:125,notes:32, ka:0.5,doubles:0.38,window:0.14,diff:'HARD',
-                oni:{hard:0.30,mid:0.40,speed:165,pj:0.040,gj:0.075},
+                bpm:118,notes:28, ka:0.5,doubles:0.38,window:0.16,diff:'HARD',   // 少しやさしく（テンポ・ノーツ数を下げ、判定を広げ、連打を軽く）
+                oni:{hard:0.18,mid:0.40,speed:158,pj:0.046,gj:0.085,soft:true},
                 desc:'きあいのいっぱつの きょうかばん'},
+  // 必殺技：コストゲージがMAX（cost_attack_6_6）のときだけ、「たたかう」を選ぶと これだけが出る。SPは使わない。
+  // いりょくは固定：「りゅうせい」を持っていれば 60／持っていなければ 30（startAttack で決める）
+  // むずかしさは なぎはらい と おなじ
+  'アグライア':{name:'アグライア',power:30, sp:0, color:'#ffe14d',icon:'★',
+                bpm:104,notes:24, ka:0.42,doubles:0.26,window:0.18,diff:'HARD',   // なぎはらいより 少しやさしく
+                oni:{hard:0.08,mid:0.36,speed:145,pj:0.050,gj:0.092,soft:true},
+                desc:'ひっさつわざ'},
 };
+const AGLAIA='アグライア';
+function aglaiaReady(){return (battle.costLv|0)>=COST_MAX;}   // コストゲージがMAX？
+function battleMoves(){return aglaiaReady()?[AGLAIA]:player.moves;}   // 戦闘の「たたかう」で出る技（MAXのときは アグライアだけ）
 
 const ITEM_DB={
   'チョコケーキ':      {kind:'heal', value:15, color:'#7dffb0', icon:'🌿'},
@@ -269,7 +279,7 @@ function buildRoomMap(room,force){
   const m=[];for(let y=0;y<RH;y++)m.push(new Array(RW).fill(1));
   for(let y=2;y<=RH-2;y++)for(let x=1;x<=RW-2;x++)m[y][x]=0;
   const rnd=mulberry32(room.seed);
-  room.decor=[];room.cellSet=new Set();
+  room.decor=[];room.cellSet=new Set();room.belts=[];
   room.theme=pickTheme(rnd,force);
   const TPL=!!THEMES[room.theme].rows;
   if(TPL)applyTemplate(m,room,THEMES[room.theme].rows,rnd);
@@ -417,6 +427,19 @@ const MINE_ROWS=(()=>{
   S(9,4,'P');S(9,8,'P');S(14,1,'P');S(20,1,'P');S(25,1,'P');   // 坑木
   S(0,0,'b');S(1,0,'c');S(0,10,'c');S(1,10,'b');
   S(5,9,'k');S(14,10,'v');S(17,1,'k');S(24,2,'v');
+  return g.map(r=>r.join(''));
+})();
+/* ---- 搬送路の大広間：ベルトコンベアが足もとを流れる（28x11）。 > < ^ V = ベルトの向き ---- */
+const BELTDIR={'>':[1,0],'<':[-1,0],'^':[0,-1],'V':[0,1]};
+const BELT_ROWS=(()=>{
+  const w=28,h=11,g=[];for(let y=0;y<h;y++)g.push(new Array(w).fill('.'));
+  const S=(x,y,c)=>{g[y][x]=c;},H=(x0,x1,y,c)=>{for(let x=x0;x<=x1;x++)g[y][x]=c;},V=(x,y0,y1,c)=>{for(let y=y0;y<=y1;y++)g[y][x]=c;};
+  H(4,22,2,'>');V(23,2,7,'V');H(5,23,8,'<');V(4,3,8,'^');   // 時計まわりの大きなループ
+  H(6,13,5,'<');H(14,21,5,'>');                              // 中央の島：まんなかから左右へ押し出すレーン
+  S(9,4,'P');S(18,4,'P');S(9,6,'P');S(18,6,'P');
+  S(5,3,'c');S(22,3,'b');S(5,7,'b');S(22,7,'c');
+  S(1,0,'F');S(26,0,'F');S(0,0,'b');S(27,0,'c');S(0,10,'c');S(27,10,'b');
+  S(2,6,'k');S(25,4,'v');S(14,10,'k');S(13,0,'k');
   return g.map(r=>r.join(''));
 })();
 const THEMES={
@@ -693,9 +716,10 @@ lab:{n:'錬金術工房',w:1,rows:[
     '####.....k......k.......k.....',
     '####s.......v......v.......v.b']},
   bigmine:{n:'廃坑のトロッコ道',w:0,big:[30,14],rows:MINE_ROWS},   // レバー → トロッコが走って 岩の壁をこわす
+  bigbelt:{n:'搬送路の大広間',w:0,big:[30,14],rows:BELT_ROWS},   // ベルトコンベアに のって 運ばれる／さからって あるく
   hall:{n:'石の広間',w:2,rows:null},
 };
-const TCH={'=':14,'N':16,'D':13,'n':0,'g':0,'.':0,'#':1,'B':2,'P':3,'|':4,'b':5,'c':6,'x':7,'t':8,'s':9,'C':11,'R':12,'k':0,'v':0,'G':18, 'F':19, 'L':20,'W':21,'A':23,'O':22,'Q':24,'K':25,'M':26,'Y':27,'r':0,'H':28,'X':29,};
+const TCH={'=':14,'N':16,'D':13,'n':0,'g':0,'.':0,'#':1,'B':2,'P':3,'|':4,'b':5,'c':6,'x':7,'t':8,'s':9,'C':11,'R':12,'k':0,'v':0,'G':18, 'F':19, 'L':20,'W':21,'A':23,'O':22,'Q':24,'K':25,'M':26,'Y':27,'r':0,'H':28,'X':29,'>':0,'<':0,'^':0,'V':0,};
 function pickTheme(rnd,force){
   if(force)return force;
   const keys=Object.keys(THEMES);let tot=0;for(const k of keys)tot+=THEMES[k].w;
@@ -709,6 +733,7 @@ function applyTemplate(m,room,rows,rnd){
     for(let i=0;i<row.length;i++){
       const ch=row[i],x=1+i,y=2+j;
       m[y][x]=TCH[ch];
+      if(BELTDIR[ch])room.belts.push({x,y,dx:BELTDIR[ch][0],dy:BELTDIR[ch][1]});
       if(ch==='k'||ch==='v'||ch==='r')room.decor.push({t:ch,x,y});
       if(ch==='n'||ch==='g'||ch==='N'||ch==='x'){room.cellSet.add(x+','+y);if(ch==='n'||ch==='N')room.decor.push({t:'n',x,y});}   // 牢・詰所の中（敵は出ない）
     }
@@ -751,6 +776,7 @@ function finishTemplate(m,room,rnd){
     room.decor.push({t:rnd()<0.5?'k':'v',x,y});
   }
   room.decor=room.decor.filter(d=>m[d.y][d.x]===0);
+  room.belts=(room.belts||[]).filter(b=>m[b.y][b.x]===0);
 }
 
 /* --- 置き物のドット絵（1タイル = 30x30） --- */
@@ -2325,18 +2351,18 @@ function preloadEnemyImgs(){
 
 /* ========== 敵データ（6種） ========== */
 const ENEMY_DB={
-  slime:  {name:'ルル',  hp:20, atk:3, color:'#6ee7a8', dark:'#2f9e68', img:'slime.png', shape:'slime',  atkCells:1, targetBias:0.20},
-  bat:    {name:'セイバット',  hp:25, atk:4, color:'#c084fc', dark:'#7c3aed', img:'bat.png', shape:'bat',    atkCells:2, targetBias:0.30, pattern:'bat'},
+  slime:  {name:'ルル',  hp:19, atk:4, color:'#6ee7a8', dark:'#2f9e68', img:'slime.png', shape:'slime',  atkCells:1, targetBias:0.20},
+  bat:    {name:'セイバット',  hp:24, atk:4, color:'#c084fc', dark:'#7c3aed', img:'bat.png', shape:'bat',    atkCells:2, targetBias:0.30, pattern:'bat'},
   golem:  {name:'オプティパス',  hp:34, atk:5, color:'#a5b4fc', dark:'#4f46e5', img:'golem.png', shape:'golem',  atkCells:3, targetBias:0.25, pattern:'golem'},
   ghost:  {name:'プラレー',  hp:28, atk:5, color:'#b8e8ff', dark:'#3a7a9e', img:'ghost.png', shape:'ghost',  atkCells:2, targetBias:0.55, pattern:'ghost'},
   knight: {name:'キャンリング',    hp:36, atk:6, color:'#ffd18a', dark:'#8a5a1a', img:'knight.png', shape:'knight', atkCells:3, targetBias:0.40, pattern:'knight'},
   wizard: {name:'アズリエル',hp:39, atk:7, color:'#e0a5ff', dark:'#6a1f9e', img:'wizard.png', shape:'wizard', atkCells:4, targetBias:0.35, pattern:'wizard'},
   bakeboom:{name:'バケブーム',hp:41, atk:6, color:'#ff9a5a', dark:'#9a3a12', img:'bake.png', shape:'golem', atkCells:2, targetBias:0.40, pattern:'bakeboom'},   // 11F〜14F：爆弾を2つ投げる
 };
-const BOSS_DB={name:'MPLの首領',hp:600,atk:13,color:'#f0a5ff',dark:'#7c1fbe',img:'boss.png',imgY:-6,shape:'knight',atkCells:5,targetBias:0.45,isBoss:true,pattern:'boss'};
+const BOSS_DB={name:'MPLの首領',hp:700,atk:14,color:'#f0a5ff',dark:'#7c1fbe',img:'boss.png',imgY:-6,shape:'knight',atkCells:5,targetBias:0.45,isBoss:true,pattern:'boss'};
 /* 中ボス「クマティア」（10F確定）。通常の敵とは別枠なので ふつうには出てこない。
    img … 画像ファイル名 ／ imgScale・imgY で大きさ・位置の微調整 ／ hp・atk・exp で強さ調整 */
-const MIDBOSS_DB={name:'クマティア',hp:200,atk:9,exp:40,color:'#bfeaff',dark:'#3a78a8',img:'kumatia.png',shape:'knight',atkCells:3,targetBias:0.4,mid:true,pattern:'kumatia'};
+const MIDBOSS_DB={name:'クマティア',hp:250,atk:10,exp:40,color:'#bfeaff',dark:'#3a78a8',img:'kumatia.png',shape:'knight',atkCells:3,targetBias:0.4,mid:true,pattern:'kumatia'};
 
 /* 停電部屋（燭台の大食堂）で 灯りが消えたときだけ あらわれる敵「クビ・ガリ」。ふつうの出現表（enemyPool）には入らない。
    img … kubigari.png ／ imgScale・imgY で大きさ・位置の微調整 ／ hp・atk は固定（どの階でも同じ。fixed:true）／ solo … 2匹同時バトルにしない
@@ -2393,8 +2419,8 @@ function scaleEnemy(def,floor,lv){
    skill:技の名前 ／ item:アイテム名 */
 const SPECIAL_CHESTS={
   2: {skill:'きあいのいっぱつ'},
-  6: {item:'強化メダル'},
-  8: {skill:'シャイニング'},
+  5: {item:'強化メダル'},
+  7: {skill:'シャイニング'},
   9: {item:'強化メダル'},
   10:{skill:'なぎはらい'},
   12:{item:'強化メダル'},
@@ -2405,7 +2431,7 @@ const SPECIAL_CHESTS={
    中身は、その階の重み表（数字＝％のめやす。合計100でなくても、合計に対する割合で選ばれる）から1個ずつ抽選。 */
 const CHEST_COUNT_MIN=2, CHEST_COUNT_MAX=3;
 const CHEST_TABLES=[
-  {from:1, to:5,  w:{'ホルミシス':5,'クッキー':7,'カウンター':3,'チョコケーキ':60,'マナキット':25}},
+  {from:1, to:5,  w:{'ホルミシス':10,'クッキー':7,'カウンター':3,'チョコケーキ':55,'マナキット':25}},
   {from:6, to:10, w:{'ホルミシス':5,'カウンター':5,'チョコケーキ':35,'かんしゃく':5,'シールド':5,'ハンバーガー':10,'マナキット':30,'マナキットS':5,'クッキー':8}},
   {from:11,to:99, w:{'ホルミシス':7,'カウンター':8,'チョコケーキ':40,'かんしゃく':5,'シールド':5,'ハンバーガー':20,'マナキット':10,'マナキットS':10,'クッキー':5}},  
 ];
@@ -2680,8 +2706,35 @@ function stepOnePx(ax,ay){
   }
   return false;
 }
+/* ===== ベルトコンベア：のっているあいだ、ベルトの向きに運ばれる（歩けば さからえる） ===== */
+function conveyorPush(dt){
+  const r=curRoom;if(!r||!r.belts||!r.belts.length||G.mode!=='dungeon')return;
+  const gx=Math.floor(player.x/TILE),gy=Math.floor((player.y+PFEET)/TILE);
+  const b=r.belts.find(q=>q.x===gx&&q.y===gy);if(!b)return;
+  let dist=TILE/player.moveSpd*Math.min(dt,0.05)*0.6;
+  while(dist>0){const st=Math.min(1,dist);dist-=st;if(!stepOnePx(b.dx*st,b.dy*st))break;}
+  const nx=Math.floor(player.x/TILE),ny=Math.floor((player.y+PFEET)/TILE);
+  if(nx!==player.gx||ny!==player.gy){player.gx=nx;player.gy=ny;onStep();}
+}
+function drawBelts(){
+  const r=curRoom;if(!r||!r.belts||!r.belts.length)return;
+  const t=(G.time*36)%24;
+  for(const b of r.belts){
+    const sx=b.x*60-camX,sy=b.y*60-camY;
+    if(sx<-60||sx>W||sy<-60||sy>H)continue;
+    ctx.save();ctx.translate(sx+30,sy+30);ctx.rotate(Math.atan2(b.dy,b.dx));
+    ctx.beginPath();ctx.rect(-30,-30,60,60);ctx.clip();
+    ctx.fillStyle='#1a1226';ctx.fillRect(-30,-30,60,60);
+    ctx.fillStyle='#3a3050';ctx.fillRect(-30,-22,60,44);
+    ctx.strokeStyle='#9a90bc';ctx.lineWidth=4;
+    for(let x=-36+t;x<36;x+=24){ctx.beginPath();ctx.moveTo(x,-14);ctx.lineTo(x+10,0);ctx.lineTo(x,14);ctx.stroke();}
+    ctx.fillStyle='#6a6088';ctx.fillRect(-30,-26,60,4);ctx.fillRect(-30,22,60,4);
+    ctx.restore();
+  }
+}
 function updatePlayer(dt){
   player.anim+=dt;
+  conveyorPush(dt);if(G.fade||G.mode!=='dungeon')return;
   let dx=0,dy=0;
   if(down['ArrowLeft']||down['KeyA'])dx=-1;
   else if(down['ArrowRight']||down['KeyD'])dx=1;
@@ -2999,6 +3052,7 @@ function drawDungeon(){
   drawDoorLeaves();
   ctx.save();ctx.translate(-camX,-camY);drawRoomTorches();ctx.restore();
   drawMine();
+  drawBelts();
   if(curRoom&&curRoom.theme==='icehall')drawIceAmbient();
   if(curRoom&&curRoom.theme==='bossroom')drawAmAmbient();   // 氷の間：きらめき・舞う雪
   ctx.imageSmoothingEnabled=true;
@@ -3413,7 +3467,8 @@ const BAG_ICON_FILES={
     'きあいのいっぱつ':'move_kiai_ippatsu.png',
     'シャイニング':'move_shining.png',
     'なぎはらい':'move_nagiharai.png',
-    'りゅうせい':'move_ryusei.png'
+    'りゅうせい':'move_ryusei.png',
+    'アグライア':'star.png'
   }
 };
 const bagImgs={};
@@ -4201,6 +4256,8 @@ const GUARD_MULT=0.5;
 const PARRY_WINDOW=0.22;
 const PARRY_SP=6;
 
+/* コストゲージ（パリィ → アグライア）は 戦闘が終わっても つぎの戦闘へ引きつぐ。アグライアを打つか、ゲームオーバー／さいしょからで リセット */
+const keepCost={lv:0,n:0};
 const battle={
   active:false,phase:'command',t:0,
   enemy:null,enemyDef:null,entity:null,
@@ -4232,6 +4289,8 @@ function makeFoe(def,entity,slot,name){
   return {hp:(entity.hp!==undefined?entity.hp:def.hp),maxHp:def.hp,atk:def.atk,name:name||def.name,isBoss:def.isBoss,
     def:def,entity:entity,slot:slot,hurt:0,dead:false,dust:null,pose:null};
 }
+Object.defineProperty(battle,'costLv',{get(){return keepCost.lv;},set(v){keepCost.lv=v|0;},enumerable:true});
+Object.defineProperty(battle,'parryN',{get(){return keepCost.n;},set(v){keepCost.n=v|0;},enumerable:true});
 function setBattleEnemy(entity,extraDef){
   const def=entity.def;
   battle.duo=!!extraDef;
@@ -4314,7 +4373,7 @@ function updateBattle(dt){
         if(OK)menuMain(battle.menuIdx);
         act=!!(L||R||OK);
       }else if(battle.sub===1){
-        const m=player.moves.length;
+        const m=battleMoves().length;
         if(L)battle.moveIdx=(battle.moveIdx+m-1)%m;
         if(R)battle.moveIdx=(battle.moveIdx+1)%m;
         if(OK)pickMove(battle.moveIdx);
@@ -4402,6 +4461,7 @@ const ei=entities.indexOf(battle.entity);if(ei>=0)entities.splice(ei,1);}
       break;
     case 'dodge':updateDodge(dt);break;
     case 'counterFx':updateCounterFx(dt);break;
+    case 'costFx':updateCostFx(dt);break;
     case 'enemyResult':
       if(battle.t>1.4){battle.phase='command';battle.t=0;battle.sub=0;battle.menuIdx=2;battle.rage=false;battle.shield=false;battle.counter=false;battle.ecg={t:0};}
       break;
@@ -4448,7 +4508,11 @@ const TAIKO_JUDGE_Y=310;
 const TAIKO_SPEED=340;
 
 function startAttack(moveName){
-  const m=MOVE_DB[moveName];
+  let m=MOVE_DB[moveName];
+  if(moveName===AGLAIA){   // アグライア：いりょく固定（りゅうせい持ち=60／なし=30）。ゲージは使いきる
+    m=Object.assign({},m,{power:player.moves.includes('りゅうせい')?60:30});
+    battle.costLv=0;battle.parryN=0;
+  }
   battle.curMove=m;
   battle.atkResult=null;battle.atkMult=0;battle.atkDmg=0;
   battle.mini=createTaiko(m);
@@ -4487,6 +4551,15 @@ const ONI_HARD=[
   'ddkddkdkddkddkdk',
   'kdkdkkdkdkdkkdkd',
 ];
+// 少しやさしい「高速」パターン（連打は 最大3つまで・休みを多めに）。oni.soft のわざが使う
+const ONI_HARD_SOFT=[
+  'dkd.dkd.dkd.dkd.',
+  'ddk.ddk.ddk.ddk.',
+  'dkd.k.dkd.kd.dk.',
+  'ddk.kdd.kkd.dkd.',
+  'd.ddk.kkd.ddk.k.',
+  'k.dkd.kdk.dkd.d.',
+];
 function createTaiko(m){
   const beatSec=60/m.bpm;
   const startTime=1.5;
@@ -4503,7 +4576,7 @@ function createTaiko(m){
         else if(r<m.oni.hard+(m.oni.mid||0))tier='mid';
       }
       lastTier=tier;
-      const pool=tier==='hard'?ONI_HARD:tier==='mid'?ONI_MID:ONI_EASY;
+      const pool=tier==='hard'?(m.oni.soft?ONI_HARD_SOFT:ONI_HARD):tier==='mid'?ONI_MID:ONI_EASY;
       const off=tier==='hard'?100:tier==='mid'?200:0;
       let idx;do{idx=(Math.random()*pool.length)|0;}while(pool.length>1&&idx+off===last);
       last=idx+off;
@@ -4631,7 +4704,7 @@ function swT(){const w=0.12+0.04*tierIdx();return{w:w,s1:w+0.20,launch:w+0.12,hi
 /* ---- りゅうせい：ランクを昇格 → 空が暗くなる → プレイヤーの上空から 敵へ流星 → 流星が当たった瞬間にダメージ（ランクが高いほど流星がふえて豪華） ---- */
 const MET_LEAD=0.30,MET_HOLD=0.35;   // ためはじめ／さいごのため（秒）
 const MET_AFTER=[0.6,0.75,0.9,1.5];   // ヒット後の余韻（ランクごと）
-function isMeteorMove(){const n=battle&&battle.curMove&&battle.curMove.name;return n==='りゅうせい';}
+function isMeteorMove(){const n=battle&&battle.curMove&&battle.curMove.name;return n==='りゅうせい'||n==='アグライア';}   // アグライアも りゅうせいと同じ演出
 function metHash(i,k){const v=Math.sin(i*127.1+k*311.7)*43758.5453;return v-Math.floor(v);}
 function metDim(){return 0.36+0.04*tierIdx();}
 function metPlan(){   // 流星ぜんぶの 出る時間・出発点・着弾点（さいごの1つが 本命の大きな流星）
@@ -4750,6 +4823,40 @@ function spawnParryStar(counterDmg){
     battle.stars.push({st:'fall',kind:'counter',t:0,x:cx,y:cy-STAR.height,tx:cx,ty:cy,gain:0,dmg:counterDmg,foe:battle.enemy,ph:Math.random()*6});
   }
 }
+const COST_MAX=6,COST_PER=2;   // パリィ2回ごとにコストゲージ+1、最大6
+function costTarget(){return Math.min(COST_MAX,Math.floor((battle.parryN|0)/COST_PER));}   // パリィ回数 → ゲージの段階
+function starupLen(){   // starup.mp3 の長さ（秒）。読めていなければ 0.6
+  const p=sfxPool.starup,d=p&&p.els[0]?p.els[0].duration:NaN;
+  return (isFinite(d)&&d>0)?Math.min(3,Math.max(0.2,d)):0.6;
+}
+function goCommand(skipTick){   // ⭐がSPに入りきったあと：ゲージが上がるなら 1段ずつ見せてから コマンドへ
+  if(costTarget()>(battle.costLv|0)){
+    battle.phase='costFx';battle.t=0;battle.costT=0;battle.costWaiting=false;battle.costSkip=!!skipTick;
+    battle.rage=false;battle.shield=false;battle.attacks=[];battle.enemyPose=null;battle.fx=[];
+  }else toCommandPhase(skipTick);
+}
+function updateCostFx(dt){   // 1段ふえる → 画像チェンジ＋starup → 音が「おわった瞬間」に つぎの段…
+  if(battle.costWaiting){
+    battle.costT-=dt;
+    if(!battle.costEnded&&battle.costT>0)return;   // 音がおわる（ended）まで待つ。念のため時間切れでも先へ
+    battle.costWaiting=false;
+    if(battle.costEl&&battle.costFn){battle.costEl.removeEventListener('ended',battle.costFn);}
+    battle.costEl=null;battle.costFn=null;
+  }
+  if((battle.costLv|0)<costTarget()){
+    battle.costLv=(battle.costLv|0)+1;
+    const p=sfxPool.starup,ok=p&&!p.bad;
+    battle.costEnded=false;
+    if(ok){   // 再生する音の ended を待つ
+      const a=p.els[p.i];
+      battle.costEl=a;battle.costFn=()=>{battle.costEnded=true;};
+      a.addEventListener('ended',battle.costFn,{once:true});
+    }
+    playSfx('starup');   // starup.mp3
+    battle.costWaiting=true;
+    battle.costT=ok?starupLen()+0.5:0.4;
+  }else toCommandPhase(battle.costSkip);   // ぜんぶ見せおわった → コマンド表示
+}
 function launchStars(){   // 敵の攻撃がおわった：のこってる星を ぜんぶ SPゲージへ
   const ss=battle.stars||[];let k=0;
   for(const q of ss){if(q.kind==='counter'||q.st==='fly')continue;q.st='fly';q.t=-k*STAR.gap;q.sx=q.x;q.sy=q.y;k++;}
@@ -4840,16 +4947,16 @@ function toCommandPhase(skipCounterTick){   // 回避ターンおわり → コ�
 }
 function endDodge(){
   launchStars();
-  if(battle.counterPending){   // カウンターの星がある：SPの星 → 紫の星 が飛びおわるまで コマンドは出さない
-    battle.phase='counterFx';battle.t=0;battle.cfxT=0;
+  if(battle.counterPending||(battle.stars||[]).length){   // 星が飛んでいる：SPに入りきる（カウンターなら 紫の星も）まで コマンドは出さない
+    battle.phase='counterFx';battle.t=0;battle.cfxT=0;battle.cfxWait=battle.counterPending?0.7:0.35;
     battle.rage=false;battle.shield=false;counterTick();
     battle.attacks=[];battle.enemyPose=null;battle.fx=[];
-  }else toCommandPhase();
+  }else goCommand();
 }
 function updateCounterFx(dt){
   if(battle.stars&&battle.stars.length){battle.cfxT=0;return;}
   battle.cfxT+=dt;
-  if(battle.cfxT<0.7)return;
+  if(battle.cfxT<(battle.cfxWait||0.7))return;
   for(const f of battle.foes){if(!f.dead&&f.hp<=0){f.dead=true;battle.expAcc+=expFor(f.def);startEnemyDust(f);}}
   if(!aliveFoes().length){
     battle.phase='win';battle.t=0;gainExp();
@@ -4860,7 +4967,7 @@ function updateCounterFx(dt){
     const ei=entities.indexOf(battle.entity);if(ei>=0)entities.splice(ei,1);
   }else{
     setTarget(aliveFoes()[0]);
-    toCommandPhase(true);   // カウンターのターン数は counterFx に入るときに へらしてある
+    goCommand(true);   // カウンターのターン数は counterFx に入るときに へらしてある
   }
 }
 function tryHitPlayer(cell,mul){
@@ -4872,6 +4979,7 @@ function tryHitPlayer(cell,mul){
   const parried=(!battle.guardHeld&&sinceRelease<PARRY_WINDOW);
   if(parried){
     playSfx('pali');
+    battle.parryN=(battle.parryN|0)+1;   // コストゲージ用：パリィ成功の回数
     battle.parryFlash=0.55;
     spawnParryStar(battle.counter?base:0);   // カウンター中は 紫の星も（ダメージは星が敵に当たったとき）　SPは星が ゲージにすいこまれたときに ふえる
     battle.invuln=0.55;battle.noBlink=true;battle.guardReleaseT=-999;
@@ -4968,6 +5076,82 @@ function updateGolemAtk(a,dt){
       break;}
   }
   battle.enemyPose=p;
+}
+
+/* ========== ゴーレムの新技（ロケットパンチ／岩落とし）＋ ランダム選択 ==========
+   ゴーレムは 回避フェーズ中、「たたきつけ」「ロケットパンチ」「岩落とし」を 完全ランダムに つぎつぎ出す（同じ技が続くこともある）。 */
+const GF_WARN=0.60,GF_FLY=0.48,GF_BACK=0.22,GF_MUL=1.5;   // ロケットパンチ
+function spawnGolemFist(R){
+  if(R<1.5)return;
+  const pr=battle.prow,tb=clamp((battle.enemyDef.targetBias||0.3)+0.3,0,0.9);
+  const r=Math.random()<tb?pr:[0,1,2].filter(x=>x!==pr)[(Math.random()*2)|0];   // プレイヤーの行をねらう／ほかの行
+  battle.attacks.push({kind:'golemfist',r,phase:'warn',t:0,seed:Math.random()*6,fx:D_ENEMY_X,hitDone:false});
+}
+function updateGolemFistAtk(a,dt){
+  a.t+=dt;
+  const HX=D_ENEMY_X,HY=D_ENEMY_Y,GY=dCellCY(a.r);
+  const p={x:HX,y:HY,s:2.1,sx:1,sy:1,lift:0,front:false};
+  if(a.phase==='warn'){   // 右うでを ひいて ためる（！！）
+    p.x=HX+Math.sin(a.t*70)*2+a.t*14;p.y=lerp(HY,GY,Math.min(1,a.t/GF_WARN)*0.6);p.sx=1.1;p.sy=0.9;p.lift=0.5;
+    if(a.t>=GF_WARN){a.phase='fly';a.t=0;a.fx=HX-30;battle.shake=Math.max(battle.shake,6);}
+  }else if(a.phase==='fly'){   // こぶしが 一直線にとんでくる
+    const tt=Math.min(1,a.t/GF_FLY);
+    a.fx=lerp(HX-30,-60,tt*tt*0.5+tt*0.5);
+    p.x=HX-14;p.y=lerp(HY,GY,0.6);p.sx=0.92;p.sy=1.05;
+    if(!a.hitDone&&Math.abs(battle.ppx-a.fx)<38){
+      const v=playerVisCell();
+      if(v.r===a.r){a.hitDone=true;tryHitPlayer(v,GF_MUL);battle.shake=Math.max(battle.shake,12);addDust(a.fx,GY,8,30);}
+    }
+    if(a.t>=GF_FLY){a.phase='back';a.t=0;}
+  }else{
+    const tt=Math.min(1,a.t/GF_BACK);p.x=HX;p.y=lerp(lerp(HY,GY,0.6),HY,tt);p.sx=1+0.06*(1-tt);
+    if(a.t>=GF_BACK){a.dead=true;battle.spawnT=0.15;return;}
+  }
+  battle.enemyPose=p;
+}
+const GR_RAISE=0.40,GR_WARN=0.60,GR_FALL=0.28,GR_END=0.35,GR_MUL=1.4;   // 岩落とし
+function spawnGolemRock(R){
+  if(R<1.9)return;
+  battle.attacks.push({kind:'golemrock',cells:pickAttackCells(3,0.65),phase:'raise',t:0,seed:Math.random()*6});
+}
+function updateGolemRockAtk(a,dt){
+  a.t+=dt;
+  const HX=D_ENEMY_X,HY=D_ENEMY_Y;
+  const p={x:HX,y:HY,s:2.1,sx:1,sy:1,lift:0,front:false};
+  if(a.phase==='raise'){   // 両手をバンザイして 岩をよびだす
+    const tt=Math.min(1,a.t/GR_RAISE);p.lift=1-(1-tt)*(1-tt);p.y=HY-8*tt;p.sy=1+0.06*tt;
+    if(a.t>=GR_RAISE){a.phase='warn';a.t=0;}
+  }else if(a.phase==='warn'){   // ！！ マスに かげ
+    p.lift=1;p.y=HY-8+Math.sin(a.t*60)*2;p.sy=1.06;
+    if(a.t>=GR_WARN){a.phase='fall';a.t=0;}
+  }else if(a.phase==='fall'){   // 岩がふってくる
+    p.lift=Math.max(0,1-a.t/0.12);p.y=HY-8+8*Math.min(1,a.t/0.12);
+    if(a.t>=GR_FALL){
+      a.phase='end';a.t=0;battle.shake=Math.max(battle.shake,14);
+      const v=playerVisCell();
+      for(const c of a.cells)addDust(dCellCX(c.c),dCellCY(c.r)+20,6,40);
+      if(cellsHas(a.cells,v.c,v.r))tryHitPlayer(v,GR_MUL);
+    }
+  }else{
+    if(a.t>=GR_END){a.dead=true;battle.spawnT=0.2;return;}
+  }
+  battle.enemyPose=p;
+}
+/* ゴーレムの技を ランダムに えらぶ（残り時間が足りない技は 候補からはずす） */
+function spawnGolemAct(R){
+  const pool=[];
+  if(R>=1.5)pool.push(spawnGolemSlam,spawnGolemFist);
+  if(R>=1.9)pool.push(spawnGolemRock);
+  if(!pool.length)return;
+  pool[(Math.random()*pool.length)|0](R);
+}
+function drawGolemRock(x,y,s,col,dark){
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  const g=ctx.createRadialGradient(-6,-8,2,0,0,26);g.addColorStop(0,'#fff');g.addColorStop(0.35,col);g.addColorStop(1,dark);
+  ctx.fillStyle=g;ctx.strokeStyle='#1a0f38';ctx.lineWidth=2;ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(-18,-4);ctx.lineTo(-9,-19);ctx.lineTo(8,-21);ctx.lineTo(20,-6);ctx.lineTo(15,14);ctx.lineTo(-4,19);ctx.lineTo(-17,11);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle='rgba(20,10,40,0.6)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-8,-10);ctx.lineTo(-2,-2);ctx.lineTo(-6,6);ctx.moveTo(6,-12);ctx.lineTo(9,-3);ctx.stroke();
+  ctx.restore();
 }
 
 
@@ -5239,6 +5423,80 @@ function updateGhostAtk(a,dt){
       break;}
   }
   battle.enemyPose=p;
+}
+
+/* ========== ゴーストの新技（ひとだま／とりつき）＋ ランダム選択 ==========
+   ゴーストは 「バァッ！（従来）」「ひとだま」「とりつき」を 完全ランダムに つぎつぎ出す。 */
+const GW_LAUNCH0=0.60,GW_GAP=0.45,GW_SPEED=520,GW_MUL=1.3;   // ひとだま：1つめが出るまで／出る間かく／飛ぶ速さ(px/秒)
+function spawnGhostWisp(R){
+  const n=battle.dodgeT/DODGE_DUR<0.4?2:3;
+  const need=GW_LAUNCH0+GW_GAP*(n-1)+(D_ENEMY_X+60)/GW_SPEED+0.2;
+  if(R<need)return;
+  const rows=[0,1,2].sort(()=>Math.random()-0.5);
+  if(Math.random()<0.7){const i=rows.indexOf(battle.prow);rows.splice(i,1);rows.unshift(battle.prow);}   // 1つめは プレイヤーの行をねらいやすい
+  battle.attacks.push({kind:'ghostwisp',rows:rows.slice(0,n),n,t:0,done:[],seed:Math.random()*6,need});
+}
+function wispX(a,i){return a.t<GW_LAUNCH0+GW_GAP*i?null:D_ENEMY_X-20-(a.t-GW_LAUNCH0-GW_GAP*i)*GW_SPEED;}
+function updateGhostWispAtk(a,dt){
+  a.t+=dt;
+  const HX=D_ENEMY_X,HY=D_ENEMY_Y;
+  const p={x:HX,y:HY+Math.sin(a.t*9)*4,s:2.1,sx:1,sy:1,lift:0,front:false,alpha:0.92};
+  let alive=false;
+  for(let i=0;i<a.n;i++){
+    const x=wispX(a,i);
+    if(x===null){alive=true;continue;}
+    if(x<-50)continue;
+    alive=true;
+    if(!a.done[i]&&Math.abs(battle.ppx-x)<30){
+      const v=playerVisCell();
+      if(v.r===a.rows[i]){a.done[i]=true;tryHitPlayer(v,GW_MUL);if(battle.phase==='lose')return;addDust(x,dCellCY(v.r),8,30,'#c8b0ff');}
+    }
+    if(Math.random()<0.3)addDust(x+20,dCellCY(a.rows[i]),1,10,'#c8b0ff');
+  }
+  if(!alive){a.dead=true;battle.spawnT=0.3;return;}
+  battle.enemyPose=p;
+}
+const GC_MOVE=0.18,GC_WARN=0.50,GC_BURST=0.22,GC_RET=0.35,GC_MUL=1.5;   // とりつき
+function spawnGhostCling(R){
+  const n=Math.min(3,Math.floor((R-0.5)/(GC_MOVE+GC_WARN+GC_BURST)));
+  if(n<1)return;
+  battle.attacks.push({kind:'ghostcling',n,i:0,ph:'move',t:0,cell:playerVisCell(),fx:D_ENEMY_X,fy:D_ENEMY_Y,seed:Math.random()*6});
+}
+function updateGhostClingAtk(a,dt){
+  a.t+=dt;
+  const HX=D_ENEMY_X,HY=D_ENEMY_Y;
+  const tx=dCellCX(a.cell.c),ty=dCellCY(a.cell.r)-14;
+  const p={x:tx,y:ty,s:2.0,sx:1,sy:1,lift:0,front:true,alpha:0.9};
+  if(a.ph==='move'){   // プレイヤーのマスへ すーっと追いかける（このとき マスが決まる）
+    const tt=Math.min(1,a.t/GC_MOVE);p.x=lerp(a.fx,tx,tt);p.y=lerp(a.fy,ty,tt);p.s=lerp(2.1,2.0,tt);
+    if(a.t>=GC_MOVE){a.ph='warn';a.t=0;}
+  }else if(a.ph==='warn'){   // ぶるぶる → もう にげても おそい
+    p.x=tx+Math.sin(a.t*70)*2;p.sx=1+0.08*(a.t/GC_WARN);p.sy=1-0.08*(a.t/GC_WARN);
+    if(a.t>=GC_WARN){
+      a.ph='burst';a.t=0;battle.shake=Math.max(battle.shake,9);addDust(tx,ty+14,10,34,'#c8b0ff');
+      const v=playerVisCell();
+      if(v.c===a.cell.c&&v.r===a.cell.r){tryHitPlayer(v,GC_MUL);if(battle.phase==='lose')return;}
+    }
+  }else if(a.ph==='burst'){
+    const k=Math.min(1,a.t/GC_BURST);p.s=2.0+0.6*k;p.alpha=0.95*(1-k);p.sx=1+0.2*(1-k);
+    if(a.t>=GC_BURST){
+      a.fx=tx;a.fy=ty;a.t=0;a.i++;
+      if(a.i>=a.n)a.ph='ret';else{a.ph='move';a.cell=playerVisCell();}
+      p.alpha=0;
+    }
+  }else{
+    const tt=Math.min(1,a.t/GC_RET);p.x=lerp(a.fx,HX,tt);p.y=lerp(a.fy,HY,tt);p.s=lerp(2.0,2.1,tt);p.alpha=tt;
+    if(a.t>=GC_RET){a.dead=true;battle.spawnT=0.3;return;}
+  }
+  battle.enemyPose=p;
+}
+function spawnGhostAct(R){
+  const pool=[];
+  if(R>=GH_BASE)pool.push(spawnGhostHaunt);
+  if(R>=1.4)pool.push(spawnGhostCling);
+  if(R>=2.7)pool.push(spawnGhostWisp);
+  if(!pool.length)return;
+  pool[(Math.random()*pool.length)|0](R);
 }
 
 /* ========== 個別攻撃⑤：ウィザード（波動を放つ → 全マスを順番においかけてまわる） ========== */
@@ -6201,9 +6459,13 @@ function drawKubiFx(a,tileX,tileY,TW,TH,pulse){
 
 /* 個別攻撃の一覧（敵データの pattern と対応） */
 const SPECIAL_ATK={
-  golem: {spawn:spawnGolemSlam, upd:updateGolemAtk},
+  golem: {spawn:spawnGolemAct, upd:updateGolemAtk},   // たたきつけ／ロケットパンチ／岩落とし をランダムで
+  golemfist:{upd:updateGolemFistAtk},
+  golemrock:{upd:updateGolemRockAtk},
   bat:   {spawn:spawnBatDive,   upd:updateBatAtk},
-  ghost: {spawn:spawnGhostHaunt,upd:updateGhostAtk},
+  ghost: {spawn:spawnGhostAct,upd:updateGhostAtk},   // バァッ！／ひとだま／とりつき をランダムで
+  ghostwisp:{upd:updateGhostWispAtk},
+  ghostcling:{upd:updateGhostClingAtk},
   knight:{spawn:spawnKnightCombo,upd:updateKnightAtk},
   wizard:{spawn:spawnWizardWave,upd:updateWizardAtk},
   boss:  {spawn:spawnBossAct,   upd:updateBossAtk},
@@ -6775,6 +7037,12 @@ function drawTorches(){
 const BX=[81,201,321],BY=205,BW=80,BH=61;
 function drawFrameBtn(x,y,label,sel,dim,opt){
   const c=dim?'#777':'#fff';
+  if(opt&&opt.glow){   // 光る枠（アグライアが出せるとき）
+    const gp=0.5+0.5*Math.sin(G.time*6);
+    ctx.globalAlpha=0.25+0.3*gp;uBox(x-6,y-6,BW+12,BH+12,'#ffe14d');
+    ctx.globalAlpha=0.45+0.4*gp;uBox(x-4,y-4,BW+8,BH+8,'#fff3a0');
+    ctx.globalAlpha=1;
+  }
   if(sel&&(Math.floor(G.time*3)%2===0))uBox(x-2,y-2,BW+4,BH+4,'#ffd800');
   else if(sel)uBox(x-2,y-2,BW+4,BH+4,'#b89a00');
   uBox(x,y,BW,BH,c);
@@ -6878,7 +7146,7 @@ function keyItemKeys(){return Object.keys(player.items).filter(k=>player.items[k
 function pickMove(i){
   if(battle.phase!=='command'||battle.sub!==1)return;
   battle.moveIdx=i;
-  const name=player.moves[i];
+  const name=battleMoves()[i];
   const cost=moveSp(name);
   if(player.sp>=cost){
     const al=aliveFoes();
@@ -6893,7 +7161,7 @@ function confirmTarget(){
   if(battle.phase!=='command'||battle.sub!==4)return;
   const f=battle.foes[battle.targetIdx];
   if(!f||f.dead)return;
-  const name=player.moves[battle.pendingMove],cost=moveSp(name);
+  const name=battleMoves()[battle.pendingMove],cost=moveSp(name);
   if(player.sp<cost){battle.sub=1;return;}
   setTarget(f);
   battle.sub=0;
@@ -7128,6 +7396,20 @@ function drawEcg(){
   }
   ctx.restore();
 }
+const ATTACK_COST_IMG=n=>'cost_attack_6_'+n+'.png';   // 同じフォルダ。0〜6。縦長(6x31)で表示。EXIFで回転済みの画像
+for(let i=0;i<=COST_MAX;i++)bagImg(ATTACK_COST_IMG(i));
+function drawAttackCost(){
+  const img=bagImg(ATTACK_COST_IMG(Math.min(COST_MAX,battle.costLv|0)));if(!img)return;
+  const sc=1.75,x=412,y=208;   // ui座標（たたかうボタンの右・縦中央）
+  ctx.imageSmoothingEnabled=false;
+  if(img.width<=img.height){   // EXIFの回転が効くブラウザ：そのまま縦長
+    ctx.drawImage(img,x*U,y*U,img.width*sc*U,img.height*sc*U);
+  }else{                        // 回転が効かない場合：左まわりに90度ぶん手で回す
+    const w=img.width*sc*U,h=img.height*sc*U;
+    ctx.save();ctx.translate(x*U,(y)*U+w);ctx.rotate(-Math.PI/2);
+    ctx.drawImage(img,0,0,w,h);ctx.restore();
+  }
+}
 function drawCommandPanel(){
   const sub=battle.sub;
   drawEcg();   // ボタンのうしろ（黒い背景）
@@ -7141,20 +7423,21 @@ function drawCommandPanel(){
       {label:'たたかう',icon:(x,y)=>iconSword(x+41,y+37)},
     ];
     for(let i=0;i<3;i++){
-      drawFrameBtn(BX[i],BY,defs[i].label,battle.menuIdx===i,i===1&&(isBigFoe(battle.enemy.def)||player.sp<RUN_COST),{icon:defs[i].icon,sub:i===1?(isBigFoe(battle.enemy.def)?'ボスは ムリ':'SP '+RUN_COST):undefined,subCol:'#feb103'});
+      drawFrameBtn(BX[i],BY,defs[i].label,battle.menuIdx===i,i===1&&(isBigFoe(battle.enemy.def)||player.sp<RUN_COST),{icon:defs[i].icon,glow:i===2&&aglaiaReady(),sub:i===1?(isBigFoe(battle.enemy.def)?'ボスは ムリ':'SP '+RUN_COST):undefined,subCol:'#feb103'});
       uiHits.push({x:BX[i],y:BY,w:BW,h:BH,fn:()=>{battle.menuIdx=i;menuMain(i);}});
     }
+    drawAttackCost();   // たたかう の右：コストゲージ（今は表示だけ）
     return;
   }
   // サブメニュー：3枚ずつ横スクロール
   let entries=[],selIdx=0,onPick=null,title='';
   if(sub===1){
     title='わざ';
-    entries=player.moves.map(nm=>{
+    entries=battleMoves().map(nm=>{
       const m=MOVE_DB[nm],cost=moveSp(nm),ok=player.sp>=cost;
       const dc={EASY:'#7dffb0',NORMAL:'#7fe4ff',HARD:'#ffe14d',EXPERT:'#ff5c8a',ONI:'#ff5c8a'}[m.diff]||'#aaa';
       const file=BAG_ICON_FILES.moves[nm];
-      return {label:m.name,sub:'SP '+cost,subCol:'#fff',sub2:m.diff,sub2Col:dc,dim:!ok,
+      return {label:m.name,sub:nm===AGLAIA?'SPなし':'SP '+cost,subCol:'#fff',sub2:m.diff,sub2Col:dc,dim:!ok,glow:nm===AGLAIA,
         icon:(x,y)=>{
           if(bagImg(file)){
             if(!ok)ctx.globalAlpha=0.4;   // SPが足りない技はうすく
@@ -8333,7 +8616,7 @@ function drawBattleScene(){
     drawHpSp(false);
     if(battle.atkNote)uText(battle.atkNote,240,246,9,'#7fe4ff','center','#000');
   }
-  else if(ph==='counterFx')drawHpSp(false);   // 星が飛んでいる間：コマンドは出さない
+  else if(ph==='counterFx'||ph==='costFx'){drawHpSp(false);drawAttackCost();}   // 星が飛んでいる間：コマンドは出さない
   else if(ph==='enemyWarn'){
     drawHpSp(false);
     if(battle.enemy.isBoss&&bossAwake()&&!battle.bossAwoke)drawMsgPanel('！！ '+battle.enemy.name+' が かくせいした！','ほのおを まとい こうげきが はげしくなる…！','#ff5a5a');
@@ -8429,6 +8712,42 @@ function drawSpecialFx(tileX,tileY,TW,TH){
           uText('ドンッ！',LX/U,zy/U-16-Math.round(t*20),14,'#fff','center','#a00000');
         }
       }
+    }else if(a.kind==='golemfist'){
+      const GY=dCellCY(a.r);
+      if(a.phase==='warn'||a.phase==='fly'){
+        const al=a.phase==='warn'?0.30+0.30*pulse:0.28;
+        ctx.fillStyle='rgba(255,40,40,'+al+')';
+        for(let c=0;c<DGRID_COLS;c++){ctx.fillRect(tileX(c),tileY(a.r),TW,TH);if(a.phase==='warn')uBox(tileX(c)/U-1,tileY(a.r)/U-1,TW/U+2,TH/U+2,pulse>0.5?'#ffc8c8':'#ff5050');}
+      }
+      if(a.phase==='warn'&&pose)uText('！！',pose.x/U,(pose.y-88)/U+Math.round(Math.sin(a.t*40)*1.5),16,'#ffe14d','center','#a00000');
+      if(a.phase==='fly'){
+        ctx.fillStyle='rgba(255,255,255,0.35)';
+        for(let i=1;i<=3;i++)ctx.fillRect(a.fx+26*i,GY-18+i*3,34,4);   // 速さの線
+        drawGolemRock(a.fx,GY,1.15,battle.enemyDef.color,battle.enemyDef.dark);
+      }
+    }else if(a.kind==='golemrock'){
+      if(a.phase==='warn'||a.phase==='fall'){
+        for(const cell of a.cells){
+          if(a.phase==='warn'){
+            warnCell(tileX(cell.c),tileY(cell.r),TW,TH,pulse,true);
+            const k=a.t/GR_WARN;   // かげが だんだん こくなる
+            ctx.fillStyle='rgba(0,0,0,'+(0.15+0.3*k)+')';
+            ctx.beginPath();ctx.ellipse(tileX(cell.c)+TW/2,tileY(cell.r)+TH-8,10+14*k,4+4*k,0,0,7);ctx.fill();
+          }else{
+            const tt=Math.min(1,a.t/GR_FALL),y=lerp(-60,dCellCY(cell.r),tt*tt);
+            ctx.fillStyle='rgba(255,40,40,0.35)';ctx.fillRect(tileX(cell.c),tileY(cell.r),TW,TH);
+            drawGolemRock(dCellCX(cell.c),y,1.1,battle.enemyDef.color,battle.enemyDef.dark);
+          }
+        }
+      }
+      if((a.phase==='raise'||a.phase==='warn')&&pose)uText('！！',pose.x/U,(pose.y-88)/U,16,'#ffe14d','center','#a00000');
+      if(a.phase==='end'){
+        const k=a.t/GR_END;
+        for(const cell of a.cells){
+          ctx.fillStyle='rgba(255,200,100,'+Math.max(0,0.4*(1-k*1.6))+')';ctx.fillRect(tileX(cell.c),tileY(cell.r),TW,TH);
+          if(k<0.6)uText('ドン！',tileX(cell.c)/U+TW/U/2,tileY(cell.r)/U-4-Math.round(k*14),12,'#fff','center','#a00000');
+        }
+      }
     }else if(a.kind==='bat'){
       const bpre=(a.phase==='warn'||a.phase==='fake'||a.phase==='pause');
       if(bpre||a.phase==='dive'){
@@ -8468,6 +8787,31 @@ function drawSpecialFx(tileX,tileY,TW,TH){
           if(el<0.34)uText('バァ！',cx,(y-14)/U-Math.round(el*24),12,'#fff','center','#3a0a80');
         }
       });
+    }else if(a.kind==='ghostwisp'){
+      for(let i=0;i<a.n;i++){
+        const ry=dCellCY(a.rows[i]),x=wispX(a,i),ls=GW_LAUNCH0+GW_GAP*i;
+        if(x===null){   // 出るまえ：行がうっすら光って、玉がふくらむ
+          const k=a.t/ls;
+          ctx.fillStyle='rgba(170,110,255,'+(0.10+0.16*pulse)+')';ctx.fillRect(tileX(0),ry-22,D_ENEMY_X-tileX(0)-20,44);
+          uText('！',(D_ENEMY_X-30)/U,(ry-14)/U,14,'#fff','center','#3a0a80');
+          ctx.fillStyle='rgba(200,170,255,0.8)';ctx.beginPath();ctx.arc(D_ENEMY_X-20,ry,4+10*k,0,7);ctx.fill();
+        }else if(x>-50){
+          for(let j=4;j>=1;j--){ctx.fillStyle='rgba(150,100,255,'+(0.16*(5-j))+')';ctx.beginPath();ctx.arc(x+j*14,ry+Math.sin(battle.enemyAnim*20+j)*3,13-j*2,0,7);ctx.fill();}
+          const g=ctx.createRadialGradient(x,ry,2,x,ry,24);g.addColorStop(0,'#fff');g.addColorStop(0.4,'#b8e8ff');g.addColorStop(1,'rgba(140,90,255,0)');
+          ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,ry,24,0,7);ctx.fill();
+          ctx.fillStyle='#fff';ctx.fillRect(x-7,ry-5,4,6);ctx.fillRect(x+3,ry-5,4,6);   // ひとだまの目
+        }
+      }
+    }else if(a.kind==='ghostcling'){
+      const x=tileX(a.cell.c),y=tileY(a.cell.r);
+      if(a.ph==='move'||a.ph==='warn')warnCell(x,y,TW,TH,a.ph==='warn'?pulse:0.3,a.ph==='warn',WARN_GHOST);
+      if(a.ph==='burst'){
+        const el=a.t,k=1-el/GC_BURST;
+        ctx.fillStyle='rgba(200,170,255,'+(0.55*k)+')';ctx.fillRect(x,y,TW,TH);
+        const cx=(x+TW/2)/U,cy=(y+TH/2)/U,r=Math.round(6+el*110);
+        ctx.globalAlpha=k;uBox(cx-r,cy-Math.round(r*0.6),r*2,Math.round(r*1.2),'#e0d0ff');ctx.globalAlpha=1;
+        uText('バァ！',cx,(y-14)/U-Math.round(el*30),12,'#fff','center','#3a0a80');
+      }
     }else if(a.kind==='knight'){
       if(a.phase==='warn'){
         const sl=a.slashes[a.i];
@@ -8633,7 +8977,7 @@ function drawGameOver(){
   ctx.fillText('ざんねん！',W/2,H/2+30);
   if(hit['KeyZ']||hit['Enter']||hit['Space']){
     player.maxHp=45;player.hp=45;
-    player.sp=player.maxSp=50;
+    player.sp=player.maxSp=50;keepCost.lv=0;keepCost.n=0;
     player.lv=1;player.exp=0;player.up={hp:1,sp:1,atk:1,g:1};
     player.moves=['きあいパンチ'];player.moveLv={};player.items={'チョコケーキ':1};
     G.floor=1;initDungeon();
@@ -8654,9 +8998,9 @@ function drawClear(t){
   ctx.fillText('おめでとう!!! 「OR1GAM1TUK1」とどこかで打つと…？',W/2,H/2+70);
   if(hit['KeyZ']||hit['Enter']||hit['Space']){
     player.maxHp=45;player.hp=45;
-    player.sp=player.maxSp=50;
+    player.sp=player.maxSp=50;keepCost.lv=0;keepCost.n=0;
     player.lv=1;player.exp=0;player.up={hp:1,sp:1,atk:1,g:1};
-    player.moves=['きあいパンチ'];player.moveLv={};player.items={'チョコケーキ':2};
+    player.moves=['きあいパンチ'];player.moveLv={};player.items={'チョコケーキ':1};
     G.floor=1;initDungeon();
   }
 }
@@ -8704,6 +9048,7 @@ const SFX_FILES={
   red   :['red.mp3',   0.8,8],   // 太鼓：赤も青も、これを鳴らす
   attack:['attack.mp3',0.9,3],
   damage:['damage.mp3',0.9,3],
+  starup:['starup.mp3',1.0,2],   // コストゲージが1段ふえたとき（音量は0〜1で、1が最大）
   dark  :['dark.mp3',  0.9,2]    // 灯りの消える部屋で、火がぜんぶ消えたとき
 };
 const sfxPool={};
@@ -8875,7 +9220,7 @@ function frame(now){
   ctx.setTransform(RES,0,0,RES,0,0);
   if(G.started){
     if(isTouchDevice){
-      const hideTc=(G.mode==='battle'&&['intro','command','attack','charge','strike','attackResult','win','levelup'].includes(battle.phase))||(G.mode==='dungeon'&&bag.open);
+      const hideTc=(G.mode==='battle'&&['intro','command','attack','charge','strike','attackResult','win','levelup','counterFx','costFx'].includes(battle.phase))||(G.mode==='dungeon'&&bag.open);
       touchControls.classList.toggle('hidden',hideTc);
       touchControls.classList.toggle('dungeonMode',G.mode==='dungeon');
     }
@@ -9002,7 +9347,7 @@ function loadSuspend(){   // 成功したら true
 }
 function newRun(){   // さいしょから（ゲームオーバー後と同じ状態）
   player.maxHp=45;player.hp=45;
-  player.sp=player.maxSp=50;
+  player.sp=player.maxSp=50;keepCost.lv=0;keepCost.n=0;
   player.lv=1;player.exp=0;player.up={hp:1,sp:1,atk:1,g:1};
   player.moves=['きあいパンチ'];player.moveLv={};player.items={'チョコケーキ':2};
   player.moving=false;
@@ -9027,7 +9372,7 @@ function setupDebugRun(){
   player.up={hp:HP_LV, sp:1, atk:ATK_LV, g:G_LV};
   player.maxHp=45+8*(HP_LV-1);   // =69
   player.hp=player.maxHp;
-  player.sp=player.maxSp=50;
+  player.sp=player.maxSp=50;keepCost.lv=0;keepCost.n=0;
   player.lv=DEBUG_LV;player.exp=0;
   player.moves=['きあいパンチ','きあいのいっぱつ','シャイニング','なぎはらい','りゅうせい'];
   player.moveLv={};
@@ -9188,6 +9533,28 @@ cv.addEventListener('pointerup',e=>{
 });
 cv.addEventListener('pointercancel',()=>{pend=null;});
 
+/* ========== コントローラー連携（gamepad.js 用の窓口） ==========
+   press / release … キーボードと同じ入力として送る ／ state … いまの場面（gamepad.js が操作の割り当てを切り替える） */
+window.__gamepadBridge={
+  press:keyDown,release:keyUp,
+  state:function(){
+    if(!G.started)return 'title';
+    if(G.mode==='dungeon')return G.bigMap?'map':(bag.open?'bag':'field');
+    if(G.mode==='battle'){
+      switch(battle.phase){
+        case 'command':return 'command';
+        case 'attack':return 'taiko';
+        case 'dodge':return 'dodge';
+        case 'win':return 'ok';
+        case 'levelup':return 'levelup';
+      }
+      return 'wait';
+    }
+    if(G.mode==='gameover'||G.mode==='clear')return 'ok';
+    return 'wait';
+  }
+};
+
 /* ========== 起動 ========== */
 initDungeon();
 G.started=false;
@@ -9196,5 +9563,6 @@ requestAnimationFrame(frame);
 
 })();
 </script>
+<script src="gamepad.js"></script>
 </body>
 </html>
