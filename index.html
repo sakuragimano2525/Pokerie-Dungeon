@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#1a0730">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
-<title>ポケモンダンジョン</title>
+<title>ポケリエダンジョンズ</title>
 <style>
   *{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;}
   html,body{margin:0;height:100%;background:#08011a;overflow:hidden;
@@ -76,7 +76,7 @@
 <body>
 
 <div id="startScreen">
-  <div class="title">ポケリエ<br>ダンジョン</div>
+  <div class="title">ポケリエ<br>ダンジョンズ</div>
   <div class="sub">ローグライクダンジョンゲーム</div>
   <button id="startBtn">▶ START</button>
   <button id="contBtn" style="display:none">⏩ つづきから</button>
@@ -2358,7 +2358,7 @@ function enemyPool(floor){
   if(floor===10)return ['golem','slime','wizard'];
   if(floor===11)return ['ghost','knight','wizard','bakeboom'];
   if(floor===12)return ['golem','ghost','bakeboom'];
-  if(floor===13)return ['ghost','knight','wizard','bakeboom'];
+  if(floor===13)return ['ghost','slime','wizard','bakeboom'];
   if(floor===14)return ['knight','wizard','ghost','bakeboom'];
   return [];
 }
@@ -2405,9 +2405,9 @@ const SPECIAL_CHESTS={
    中身は、その階の重み表（数字＝％のめやす。合計100でなくても、合計に対する割合で選ばれる）から1個ずつ抽選。 */
 const CHEST_COUNT_MIN=2, CHEST_COUNT_MAX=3;
 const CHEST_TABLES=[
-  {from:1, to:5,  w:{'クッキー':7,'カウンター':3,'チョコケーキ':65,'マナキット':25}},
+  {from:1, to:5,  w:{'ホルミシス':5,'クッキー':7,'カウンター':3,'チョコケーキ':60,'マナキット':25}},
   {from:6, to:10, w:{'ホルミシス':5,'カウンター':5,'チョコケーキ':35,'かんしゃく':5,'シールド':5,'ハンバーガー':10,'マナキット':30,'マナキットS':5,'クッキー':8}},
-  {from:11,to:99, w:{'ホルミシス':5,'カウンター':5,'チョコケーキ':40,'かんしゃく':5,'シールド':5,'ハンバーガー':20,'マナキット':15,'マナキットS':10,'クッキー':5}},  
+  {from:11,to:99, w:{'ホルミシス':7,'カウンター':8,'チョコケーキ':40,'かんしゃく':5,'シールド':5,'ハンバーガー':20,'マナキット':10,'マナキットS':10,'クッキー':5}},  
 ];
 function rollChestItem(floor){
   const t=CHEST_TABLES.find(r=>floor>=r.from&&floor<=r.to)||CHEST_TABLES[CHEST_TABLES.length-1];
@@ -4222,12 +4222,11 @@ const WIN_HEAL_HP=4, WIN_HEAL_SP=3;   // 敵を1体たおすごとの回復
 function expFor(def){
   if(def.isBoss)return 0;   // ラスボスはクリアなので経験値なし
   if(def.mid)return 3;      // クマティア
-  switch(def.name){
-    case 'スライム':case 'コウモリ':return 1;
-    case 'ウィザード':case 'ゴーレム':case 'ゴースト':case 'ナイト':case 'バケブーム':return 2;
-    case 'クビ・ガリ':return 3;
-  }
-  return 1;
+  if(def.kubigari)return 3; // クビ・ガリ（ボス扱いではないので従来どおり）
+  // 名前ではなく種類で判定する（敵の表示名を変えても経験値がずれないように）
+  if(def.pattern==='bakeboom')return 3;   // バケブーム
+  if(def.shape==='slime'||def.shape==='bat')return 1;   // スライム・コウモリ
+  return 2;   // それ以外の ふつうの敵（ゴーレム・ゴースト・ナイト・ウィザード）
 }
 function makeFoe(def,entity,slot,name){
   return {hp:(entity.hp!==undefined?entity.hp:def.hp),maxHp:def.hp,atk:def.atk,name:name||def.name,isBoss:def.isBoss,
