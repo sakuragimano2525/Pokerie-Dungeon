@@ -2452,6 +2452,7 @@ function chestPool(floor){
 
 /* ========== ダンジョン初期化 ========== */
 function initDungeon(){
+  G.enc=null;
   const isBoss=G.floor===FINAL_FLOOR;
   const isMid=G.floor===MIDBOSS_FLOOR;   // 10F：クマティアの専用部屋がある階
   const target=isBoss?5:clamp(5+((G.floor/2)|0)+((Math.random()*2)|0),5,9);
@@ -2734,7 +2735,7 @@ function drawBelts(){
 }
 function updatePlayer(dt){
   player.anim+=dt;
-  conveyorPush(dt);if(G.fade||G.mode!=='dungeon')return;
+  conveyorPush(dt);if(G.fade||G.enc||G.mode!=='dungeon')return;
   let dx=0,dy=0;
   if(down['ArrowLeft']||down['KeyA'])dx=-1;
   else if(down['ArrowRight']||down['KeyD'])dx=1;
@@ -2768,7 +2769,7 @@ function onStep(){
   }
   for(const e of entities){
     if(e.type!=='enemy')continue;
-    if(e.gx===player.gx&&e.gy===player.gy&&!(G.grace>0)){startBattle(e);return;}
+    if(e.gx===player.gx&&e.gy===player.gy&&!(G.grace>0)){beginEncounter(e);return;}
   }
 }
 
@@ -2801,7 +2802,7 @@ function updateEnemies(dt){
       }
     }
     const dx=e.x-player.x,dy=e.y-player.y-4;
-    if(dx*dx+dy*dy<(TILE*0.72)*(TILE*0.72)&&!(G.grace>0)){startBattle(e);return;}
+    if(dx*dx+dy*dy<(TILE*0.72)*(TILE*0.72)&&!(G.grace>0)){beginEncounter(e);return;}
   }
 }
 /* ---- カメラ：ふつうの部屋(16x9)は固定。広い部屋は主人公を追う（画面の中心に置き、部屋の端では止まる） ---- */
@@ -2821,6 +2822,7 @@ function updateDungeon(dt){
   updateMine(dt);
   if(G.msgT>0)G.msgT-=dt;
   if(G.grace>0)G.grace-=dt;
+  if(G.enc){updateEncounter(dt);return;}   // 敵にふれた演出のあいだは ほかの操作をうけつけない
   if(G.fade){   // 部屋の移動（暗転）
     const f=G.fade;f.t+=dt;
     if(!f.done&&f.t>=0.16){
@@ -2843,7 +2845,7 @@ function updateDungeon(dt){
   if((hit['KeyX']||hit['KeyE'])&&(tryOpenChest()||tryPullLever()||tryOpenDoor()))return;   // B : 目の前の鉄ドアを開ける
   if(hit['KeyZ']||hit['KeyM']||hit['Space']){G.bigMap=true;menuSE();return;}            // A / M   : マップ全体
   updatePlayer(dt);
-  if(G.mode!=='dungeon'||G.fade)return;
+  if(G.mode!=='dungeon'||G.fade||G.enc)return;
   followCamera(dt);
   updateEnemies(dt);
 }
@@ -3078,6 +3080,7 @@ function drawDungeon(){
   ctx.save();ctx.translate(0,-FOOT);   // 足元(影)をマスの下端ではなく中央寄りに置く → 壁や机にちゃんと近づける
   for(const e of entities){
     if(e.type!=='enemy')continue;
+    if(G.enc&&e===G.enc.e)continue;   // 演出中は さわった敵を あとで明るく描く
     const d=e.def;const bob=Math.sin(e.anim*4)*1.5;
     ctx.save();
     if(e.hurt>0)ctx.globalAlpha=0.6;
@@ -3092,7 +3095,7 @@ function drawDungeon(){
     }
     ctx.restore();
   }
-  drawHero(ctx,player.x,player.y,player.fx,player.fy,player.anim,K,HERO_LIFT,HERO_BOB_SPD);
+  if(!G.enc)drawHero(ctx,player.x,player.y,player.fx,player.fy,player.anim,K,HERO_LIFT,HERO_BOB_SPD);
   ctx.restore();
   for(const f of FEN)if(heroBehind(f))drawFence(f);   // 主人公が檻の中にいる：あとから格子を重ねる（格子ごしに見える）
   ctx.restore();
@@ -3115,7 +3118,7 @@ function drawDungeon(){
     dg.addColorStop(0,'rgba(0,0,0,0)');dg.addColorStop(0.5,'rgba(2,0,8,'+(0.5*k).toFixed(3)+')');dg.addColorStop(1,'rgba(2,0,8,'+(0.985*k).toFixed(3)+')');
     ctx.fillStyle=dg;ctx.fillRect(0,0,W,H);
   }
-  if(curRoom&&!G.fade&&!bag.open&&!G.bigMap){
+  if(curRoom&&!G.fade&&!G.enc&&!bag.open&&!G.bigMap){
     const ch=findChest();
     if(ch)drawBPrompt(ch.x*CAM_Z-camX,ch.y*CAM_Z-camY-50+Math.sin(G.time*6)*2,'ひらく');
     else{const lv=findLever();if(lv)drawBPrompt((lv.lx+0.5)*60-camX,lv.ly*60-camY-26+Math.sin(G.time*6)*2,'ひく');else{const dd=findDoor();if(dd)drawDoorPrompt(dd);}}
@@ -3126,7 +3129,8 @@ function drawDungeon(){
     const f=G.fade,a=f.t<0.16?f.t/0.16:Math.max(0,(0.32-f.t)/0.16);
     ctx.fillStyle='rgba(6,0,16,'+clamp(a,0,1)+')';ctx.fillRect(0,0,W,H);
   }
-  if(G.msgT>0&&G.msg&&!bag.open&&!G.bigMap)drawMsgBox(G.msg.text);
+  drawEncounter();
+  if(G.msgT>0&&G.msg&&!G.enc&&!bag.open&&!G.bigMap)drawMsgBox(G.msg.text);
   if(bag.open)drawBag();
   if(G.bigMap)drawBigMap();
   if(_shk)ctx.restore();
@@ -4305,7 +4309,51 @@ function setBattleEnemy(entity,extraDef){
   battle.floats=[];battle.shake=0;battle.enemyHurt=0;
   battle.mini=null;battle.kumaHist=[];
 }
-function startBattle(entity){
+/* ========== 敵にふれたときの演出 ==========
+   ① ba.mp3 ＋ まわりが暗くなる（主人公と、さわった敵だけ明るいまま）
+   ② 2人が戦闘の立ち位置までうごく（暗い背景は 戦闘画面にとけていく）
+   ③ 戦闘スタート。2匹のときは さわった敵が A の位置に立つ（B は戦闘画面にとけながら あらわれる）
+   ※ 秒数は ここで調整：暗くなる／うごく／戦闘背景にとける */
+const ENC_DIM=0.40,ENC_MOVE=0.60,ENC_FADE=0.25;
+function beginEncounter(e){
+  if(G.enc||G.mode!=='dungeon')return;
+  G.enc={e:e,extra:rollExtra(e),t:0};
+  player.moving=false;player.fx=1;e.faceR=false;   // お互いに むかいあう
+  playSfx('ba');
+}
+function updateEncounter(dt){
+  const n=G.enc;n.t+=dt;player.anim+=dt;n.e.anim+=dt;
+  if(n.t>=ENC_DIM+ENC_MOVE){G.enc=null;startBattle(n.e,n.extra);}
+}
+function drawEncounter(){
+  const n=G.enc;if(!n)return;
+  const e=n.e,d=e.def,Z=CAM_Z,K=1.15,FOOT=15;
+  const dimK=clamp(n.t/ENC_DIM,0,1);
+  const mt=clamp((n.t-ENC_DIM)/ENC_MOVE,0,1);
+  const k=mt<0.5?4*mt*mt*mt:1-Math.pow(-2*mt+2,3)/2;            // ゆっくり出て ゆっくり止まる
+  const fw=ENC_FADE/ENC_MOVE,bgA=clamp((mt-(1-fw))/fw,0,1);     // 最後だけ 戦闘の背景にとける
+  ctx.fillStyle='rgba(4,0,12,'+(0.82*dimK).toFixed(3)+')';ctx.fillRect(0,0,W,H);
+  if(bgA>0){
+    if(!BG)BG=buildBattleBg();
+    ctx.save();ctx.globalAlpha=bgA;ctx.imageSmoothingEnabled=false;ctx.drawImage(BG,0,0);drawTorches();ctx.restore();
+  }
+  ctx.imageSmoothingEnabled=true;
+  const tgt=n.extra?FOE_POS[0]:{x:D_ENEMY_X,y:D_ENEMY_Y};
+  // 敵：ダンジョンでの画面位置 → 戦闘での位置
+  const bob=Math.sin(e.anim*4)*1.5*Z;
+  const ex=lerp(e.x*Z-camX,tgt.x,k),ey=lerp((e.y-FOOT)*Z-camY+bob,tgt.y,k);
+  const es=lerp((d.isBoss?1.05:d.mid?0.95:0.72)*K*Z,foeScale(d),k);
+  if(!drawEnemyImg(ctx,ex,ey,es,d,false))drawBattleEnemy(ctx,ex,ey,es,d,e.anim);
+  if(n.extra&&bgA>0){   // 2匹目(B)：戦闘の背景といっしょに うかびあがる
+    ctx.save();ctx.globalAlpha=bgA;
+    drawBattleEnemy(ctx,FOE_POS[1].x,FOE_POS[1].y,foeScale(n.extra),n.extra,e.anim+1.1);
+    ctx.restore();
+  }
+  // 主人公：ダンジョンでの画面位置 → 戦闘の立ち位置（HERO_HOME）
+  const hx=lerp(player.x*Z-camX,HERO_HOME.x,k),hy=lerp((player.y-FOOT)*Z-camY,HERO_HOME.y,k);
+  drawHero(ctx,hx,hy,1,0,player.anim,lerp(K*Z,2.2,k),lerp(HERO_LIFT*Z,0,k),lerp(HERO_BOB_SPD,9,k));
+}
+function rollExtra(entity){   // 2匹で出るか（出るなら2匹目のデータ）を決める
   const d=entity.def;
   let extra=null;
   const rule=(!d.isBoss&&!d.mid&&!d.solo)?duoRule(d,G.floor):null;
@@ -4313,6 +4361,10 @@ function startBattle(entity){
     if(Math.random()<rule.chance)extra=scaleEnemy(ENEMY_DB[rule.extra],G.floor);
   }else if(!d.isBoss&&!d.solo&&G.floor>=DUO_FLOOR_MIN&&DUO_SHAPES.indexOf(d.shape)>=0&&ENEMY_DB[d.shape]&&Math.random()<DUO_CHANCE)
     extra=scaleEnemy(ENEMY_DB[d.shape],G.floor);
+  return extra;
+}
+function startBattle(entity,pre){   // pre=演出の前に決めておいた2匹目（なければ ここで決める）
+  const extra=(pre!==undefined)?pre:rollExtra(entity);
   G.mode='battle';
   checkGfx(true);   // 戦闘の背景が まっくろじゃないか
   setBattleEnemy(entity,extra);
@@ -4323,6 +4375,7 @@ function gainExp(){
   while(player.exp>=needExp(player.lv)){
     player.exp-=needExp(player.lv);player.lv++;up++;
   }
+  if(up>0)playSfx('levelup');   // レベルアップ：levelup.mp3
   battle.winInfo={gain:gain,up:up,lv:player.lv};
   battle.pendingUp=up;
 }
@@ -9303,7 +9356,9 @@ const SFX_FILES={
   attack:['attack.mp3',0.9,3],
   damage:['damage.mp3',0.9,3],
   starup:['starup.mp3',1.0,2],   // コストゲージが1段ふえたとき（音量は0〜1で、1が最大）
-  dark  :['dark.mp3',  0.9,2]    // 灯りの消える部屋で、火がぜんぶ消えたとき
+  dark  :['dark.mp3',  0.9,2],   // 灯りの消える部屋で、火がぜんぶ消えたとき
+  ba    :['ba.mp3',    0.9,2],   // 敵にぶつかって 戦闘が始まるとき
+  levelup:['levelup.mp3',0.9,2]   // プレイヤーがレベルアップしたとき
 };
 const sfxPool={};
 for(const k in SFX_FILES){
@@ -9510,7 +9565,7 @@ const SUSPEND_ERASE_ON_LOAD=true;
 let runUsed=false;   // 一度でも遊んだ（中断した）あとは、STARTで最初から作りなおす
 function suspendStore(){try{return window.localStorage||null;}catch(e){return null;}}
 function canSuspend(){
-  return !!(G.started&&G.mode==='dungeon'&&!G.fade&&curRoom&&roomList.indexOf(curRoom)>=0&&
+  return !!(G.started&&G.mode==='dungeon'&&!G.fade&&!G.enc&&curRoom&&roomList.indexOf(curRoom)>=0&&
     !(curRoom.doorAnim&&Object.keys(curRoom.doorAnim).length)&&!(curRoom.mine&&curRoom.mine.pulled&&!curRoom.mine.done));
 }
 function serializeRun(){
@@ -9738,6 +9793,7 @@ document.querySelectorAll('#touchControls [data-key]').forEach(bindButton);
 let pend=null;
 function tapTargets(){
   if(G.mode==='dungeon'){
+    if(G.enc)return null;
     if(G.bigMap)return{ctx:'map',list:[{x:0,y:0,w:480,h:270,fn:()=>{G.bigMap=false;}}]};
     if(bag.open)return{ctx:'bag'+bag.tab,list:bagHits};
     return{ctx:'dg',list:[
