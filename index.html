@@ -392,7 +392,7 @@ function buildRoomMap(room,force){
       if(m[r][c]===1&&m[r+1][c]===1&&m[r+2][c]!==1&&okCol(c,r)&&!tl.some(t=>t.r===r&&Math.abs(t.c-c)<10)){tl.push({c,r});room.torches.push({x:c*30+15,y:r*30+21});}
     }
   }
-  const tall=v=>v===2||v===3||v===5||v===6||v===7||v===8||v===9||v===11||v===12||v===16||v===18||v===19||v===20||v===21||v===22||v===23||v===24||v===25||v===26||v===27;
+  const tall=v=>v===2||v===3||v===5||v===6||v===7||v===8||v===9||v===11||v===12||v===16||v===18||v===19||v===20||v===21||v===22||v===23||v===24||v===25||v===26||v===27||v===30||v===31||v===32;
   const wxs=[];
   if(!big)wxs.push(96,330);else for(let x=98;x+54<RW*30-20;x+=220)wxs.push(x);
   room.windows=wxs.filter(x=>{
@@ -457,14 +457,14 @@ const THEMES={
     '.D===#..#===D.',
     '..............',
     'bc.tt....tt.cb']},
- treasury:{n:'宝物庫',w:1,rows:[
+ treasury:{n:'宝物庫',w:2,rows:[
   'G.....G.....G.',
   '..............',
   '.b..........b.',
   '..............',
   '.c..........c.',
   'b............b']},
-lab:{n:'錬金術工房',w:1,rows:[
+lab:{n:'錬金術工房',w:2,rows:[
   '.F..s....s..F.',
   '..............',
   '..P........P..',
@@ -499,7 +499,7 @@ lab:{n:'錬金術工房',w:1,rows:[
     '..............',
     '..P........P..',
     'k............v']},
-  dorm:{n:'看守の宿舎',w:1,rows:[
+  dorm:{n:'看守の宿舎',w:2,rows:[
     'xxBB......BBxx',
     '..............',
     '..............',
@@ -534,6 +534,13 @@ lab:{n:'錬金術工房',w:1,rows:[
     '..............',
     '..P........P..',
     's.k........v.s']},
+  armory:{n:'武器庫',w:2,rows:[   // ★ 新規：T=武器棚 J=鎧立て I=火鉢
+    'TTJ........JTT',
+    'I............I',
+    '..............',
+    '..............',
+    '.c..tt..tt..c.',
+    'Jb..........bJ']},
   // ---- 広い部屋（カメラが動く）。big:[横,縦] タイル数。rows は内側（横 big[0]-2 × 縦 big[1]-3）。毎階 BIG_ROOMS で出る ----
   bigwide:{n:'長い回廊',w:0,big:[32,9],rows:[
     'bc..BB..BB..######..BB..BB..cb',
@@ -719,7 +726,7 @@ lab:{n:'錬金術工房',w:1,rows:[
   bigbelt:{n:'搬送路の大広間',w:0,big:[30,14],rows:BELT_ROWS},   // ベルトコンベアに のって 運ばれる／さからって あるく
   hall:{n:'石の広間',w:2,rows:null},
 };
-const TCH={'=':14,'N':16,'D':13,'n':0,'g':0,'.':0,'#':1,'B':2,'P':3,'|':4,'b':5,'c':6,'x':7,'t':8,'s':9,'C':11,'R':12,'k':0,'v':0,'G':18, 'F':19, 'L':20,'W':21,'A':23,'O':22,'Q':24,'K':25,'M':26,'Y':27,'r':0,'H':28,'X':29,'>':0,'<':0,'^':0,'V':0,};
+const TCH={'=':14,'N':16,'D':13,'n':0,'g':0,'.':0,'#':1,'B':2,'P':3,'|':4,'b':5,'c':6,'x':7,'t':8,'s':9,'C':11,'R':12,'k':0,'v':0,'G':18, 'F':19, 'L':20,'W':21,'A':23,'O':22,'Q':24,'K':25,'M':26,'Y':27,'T':30,'J':31,'I':32,'r':0,'H':28,'X':29,'>':0,'<':0,'^':0,'V':0,};
 function pickTheme(rnd,force){
   if(force)return force;
   const keys=Object.keys(THEMES);let tot=0;for(const k of keys)tot+=THEMES[k].w;
@@ -1411,6 +1418,49 @@ function drawStandMirror(b,px,py){   // 姿見（だれかが うつっている
   R(13,10,4,4,'rgba(10,6,20,0.6)');R(11,14,8,9,'rgba(10,6,20,0.6)');   // うつっている人かげ
   R(14,11,1,1,'#ff2a2a');R(16,11,1,1,'#ff2a2a');
 }
+/* ===== 新規オブジェクト：武器棚・鎧立て・火鉢（武器庫） ===== */
+function drawWeaponRack(b,px,py){   // 武器棚：剣・槍・斧がかかっている
+  const R=(x,y,w,h,c)=>{b.fillStyle=c;b.fillRect(px+x,py+y,w,h);};
+  pShadow(b,px+15,py+27,13,3);
+  R(2,25,26,3,'#2a1408');R(3,25,24,1,'#6a3c16');                                   // 台
+  R(3,7,3,19,'#2a1408');R(4,7,1,19,'#6a3c16');R(24,7,3,19,'#2a1408');R(25,7,1,19,'#6a3c16');   // 柱
+  R(3,10,24,3,'#2a1408');R(4,10,22,1,'#9a6428');R(4,12,22,1,'#4a2810');            // 上の横木
+  R(3,19,24,3,'#2a1408');R(4,19,22,1,'#9a6428');R(4,21,22,1,'#4a2810');            // 下の横木
+  // 槍
+  R(8,2,2,24,'#6a4322');R(8,2,1,24,'#8a5a2c');
+  R(8,0,2,3,'#e8e4f8');R(7,3,4,1,'#b8b4d0');R(9,0,1,3,'#ffffff');
+  // 剣（つばつき）
+  R(13,4,2,15,'#c8c4dc');R(13,4,1,15,'#f4f2ff');R(13,3,1,1,'#ffffff');
+  R(11,18,6,2,'#d8a020');R(11,18,6,1,'#ffe070');R(13,20,2,5,'#5a3216');R(13,25,2,1,'#d8a020');
+  // 剣（2本め）
+  R(18,5,2,14,'#b8b4d0');R(18,5,1,14,'#e4e2f6');
+  R(16,18,6,2,'#c08818');R(16,18,6,1,'#f0c050');R(18,20,2,5,'#4a2810');
+  // 斧
+  R(23,3,2,23,'#6a4322');R(23,3,1,23,'#8a5a2c');
+  R(24,4,5,7,'#9aa0bc');R(25,5,3,5,'#c8cee6');R(24,4,5,1,'#e8ecff');R(28,5,1,5,'#5a6080');
+}
+function drawArmorStand(b,px,py){   // 鎧立て：兜と甲冑がたたずむ
+  const R=(x,y,w,h,c)=>{b.fillStyle=c;b.fillRect(px+x,py+y,w,h);};
+  pShadow(b,px+15,py+27,10,2.6);
+  R(8,26,14,2,'#1a1020');R(9,26,12,1,'#4a3a5a');R(14,20,2,7,'#2a1830');                      // 台と支柱
+  R(8,12,14,10,'#2a3048');R(9,12,12,9,'#7a82a0');R(9,12,3,9,'#a8b0cc');R(18,12,3,9,'#4a5270');   // 胴
+  R(9,12,12,1,'#d0d8f0');R(14,13,2,7,'#c0302a');R(11,16,8,2,'#c0302a');                         // 赤い紋章（十字）
+  R(9,20,12,2,'#5a3216');R(14,20,2,2,'#e0b040');                                                // ベルト
+  R(5,11,5,5,'#2a3048');R(6,11,3,4,'#9aa2c0');R(20,11,5,5,'#2a3048');R(21,11,3,4,'#8088a8');    // 肩当て
+  R(10,2,10,10,'#2a3048');R(11,2,8,9,'#8a92b0');R(11,2,3,9,'#b8c0dc');R(17,2,2,9,'#5a6080');     // 兜
+  R(11,6,8,2,'#0e0a18');R(14,6,2,2,'#ff3a2a');                                                  // 目あて（赤く光る）
+  R(14,0,3,3,'#c0302a');R(16,1,3,2,'#e04a3a');                                                  // 羽根かざり
+}
+function drawBrazier(b,px,py){   // 火鉢：炎がゆれる（絵は静止・光のにじみつき）
+  const R=(x,y,w,h,c)=>{b.fillStyle=c;b.fillRect(px+x,py+y,w,h);};
+  const gr=b.createRadialGradient(px+15,py+10,1,px+15,py+10,20);gr.addColorStop(0,'rgba(255,170,70,0.22)');gr.addColorStop(1,'rgba(255,120,30,0)');
+  b.fillStyle=gr;b.fillRect(px-6,py-10,42,42);
+  pShadow(b,px+15,py+27,10,2.6);
+  R(8,22,3,6,'#1a1020');R(19,22,3,6,'#1a1020');R(14,23,2,5,'#1a1020');R(9,22,1,5,'#4a3a5a');R(20,22,1,5,'#4a3a5a');   // 三本脚
+  R(7,17,16,3,'#2a2030');R(8,20,14,3,'#2a2030');R(7,17,16,1,'#8a7a9a');R(9,20,2,2,'#4a3e60');                       // 鉢
+  R(8,15,14,3,'#8a2a10');R(9,15,12,1,'#ff7020');                                                                    // おき火
+  R(10,14,10,2,'#ff7020');R(12,13,6,2,'#ffa028');R(13,12,4,2,'#ffd050');                                           // おき火のもりあがり（炎は drawBraziers で動かす）
+}
 function drawGrandPiano(b,px,py,L,Rt){   // グランドピアノ（L/Rt = となりもピアノか：つなげて見せる）
   const R=(x,y,w,h,c)=>{b.fillStyle=c;b.fillRect(px+x,py+y,w,h);};
   pShadow(b,px+15,py+27,15,3);
@@ -2099,6 +2149,9 @@ else if(v===19)drawFurnace(b,px,py);    // ★ 新規：錬金窯
     else if(v===25)drawGrandClock(b,px,py);      // ★ 新規：古時計
     else if(v===26)drawStandMirror(b,px,py);     // ★ 新規：姿見
     else if(v===27)drawGrandPiano(b,px,py,inR(x-1,y)&&m[y][x-1]===27,inR(x+1,y)&&m[y][x+1]===27);   // ★ 新規：グランドピアノ
+    else if(v===30)drawWeaponRack(b,px,py);   // ★ 新規：武器棚
+    else if(v===31)drawArmorStand(b,px,py);   // ★ 新規：鎧立て
+    else if(v===32)drawBrazier(b,px,py);      // ★ 新規：火鉢
     else if(v===28)drawLeverBase(b,px,py);   // ★ 廃坑のレバー
     else if(v===29)drawBreakWall(b,px,py,rnd);   // ★ 廃坑のくずせる岩
   }
@@ -2276,7 +2329,44 @@ function torchSees(t){        // 松明の前の床から 主人公の足もと�
   }
   return true;
 }
+/* 火鉢の炎：毎フレーム ゆらゆら動かす（光のにじみも ちらつく） */
+function drawBraziers(){
+  const m=curRoom.map;if(!m)return;
+  let L=curRoom._braz;
+  if(!L){L=curRoom._braz=[];for(let y=0;y<m.length;y++)for(let x=0;x<m[0].length;x++)if(m[y][x]===32)L.push({x,y});}
+  if(!L.length)return;
+  const t=G.time;
+  L.forEach((q,i)=>{
+    const px=q.x*30,py=q.y*30,ph=i*1.9;
+    const fl=0.5+0.5*Math.sin(t*13+ph)*Math.sin(t*5.3+ph*0.7);   // ちらつき 0〜1
+    // 光のにじみ（ちらつく）
+    for(let k=0;k<4;k++){
+      ctx.fillStyle='rgba(255,'+(130+k*18)+',50,'+(0.045+0.02*fl)+')';
+      ctx.beginPath();ctx.ellipse((px+15)*U,(py+12)*U,(26-k*5+2*fl)*U,(20-k*4+1.5*fl)*U,0,0,7);ctx.fill();
+    }
+    // 炎（4枚重ね：外 → 中 → 内 → 芯。1段ずつ細くして ドット絵の炎にする）
+    const layers=[[8,13,'#ff6a14',0],[6,11,'#ff9a24',1],[4,9,'#ffd050',2],[2,6,'#fff4b8',3]];
+    for(const [bw,bh,col,li] of layers){
+      const h=Math.round(bh+2.5*Math.sin(t*11+ph+li*0.9)+1.5*Math.sin(t*17+ph*1.3+li));
+      for(let j=0;j<h;j++){
+        const u=j/h;
+        const w=Math.max(1,Math.round(bw*(1-u*u*0.9)));
+        const sway=Math.sin(t*6+ph+u*3.2)*2.2*u*u+Math.sin(t*10.5+ph*2+u*5)*0.8*u;
+        uR(Math.round(px+15+sway-w/2),py+15-j,w,1,col);
+      }
+    }
+    // 火の粉（ふわっと のぼって きえる）
+    for(let k=0;k<3;k++){
+      const a=(t*0.75+ph*0.31+k*0.34)%1;
+      const sx=px+15+Math.sin(t*3+k*2.4+ph)*(3+a*5),sy=py+8-a*20;
+      ctx.globalAlpha=Math.max(0,1-a*1.1);
+      uR(Math.round(sx),Math.round(sy),1,1,k===1?'#fff2b0':'#ffb030');
+    }
+    ctx.globalAlpha=1;
+  });
+}
 function drawRoomTorches(){
+  drawBraziers();
   const f=Math.floor(G.time*8)%2;
   const IC=curRoom.theme==='icehall',PU=curRoom.theme==='bossroom';
   const PM={'#5a3a2a':'#3a2456','#3a2418':'#1e1238','#ff7a1a':'#b044ff','#ff9a2a':'#d478ff','#ffc040':'#f2b8ff','#ffd060':'#fbdcff','#ff8a20':'#c458ff'};
@@ -2658,6 +2748,9 @@ const FOOTPRINT={
   25:[7,10,23,28],   // 古時計
   26:[5,14,25,28],   // 姿見
   27:[0,10,30,28],   // グランドピアノ
+  30:[2,6,28,28],   // 武器棚
+  31:[7,8,23,28],   // 鎧立て
+  32:[7,14,23,28],  // 火鉢
   16:[4,7,26,28],   // ベッドわきの小棚
   28:[6,10,24,28],  // 廃坑のレバー
   15:[0,0,0,0],     // 鉄のドア（あいている＝通れる）
@@ -5601,17 +5694,18 @@ function updateKnightChargeAtk(a,dt){
   }
   battle.enemyPose=p;
 }
-const KS_DRAW=0.28,KS_WARN1=0.68,KS_WARN=0.48,KS_END=0.30,KS_MUL=1.5;   // まわりぎり：安全な1行だけのこして 2行をなぎはらう
+const KS_DRAW=0.28,KS_WARN1=0.85,KS_WARN=0.70,KS_END=0.30,KS_MUL=1.2;   // まわりぎり：安全な1行だけのこして 2行をなぎはらう
 function spawnKnightSpin(R,opt){
   opt=opt||{};R=R*(opt.sp||1);   // sp>1 のとき わざが はやく進むので、のこり時間に よゆうができる
   const prog=battle.dodgeT/DODGE_DUR;
-  let n=opt.n||(prog<0.5?2:3);   // 2〜3連続
+  let n=opt.n||2;   // 2連続（弱体化：以前は 2〜3連続）
   n=Math.min(n,1+Math.floor((R-(KS_DRAW+KS_WARN1+KS_END))/KS_WARN));
   if(R<KS_DRAW+KS_WARN1+KS_END||n<1)return;
   const safe=[];let prev=-1;
   for(let i=0;i<n;i++){
-    let cand=[0,1,2].filter(x=>x!==prev);
-    if(i===0&&Math.random()<0.6)cand=cand.filter(x=>x!==battle.prow);   // さいしょは プレイヤーのいる行を ねらいやすい
+    // 弱体化：安全な行は いつも「いまの安全な行／プレイヤーの行」から となりの行（1マス移動）だけ。2マス移動が必要な もうひどい並びは出ない
+    let cand=i===0?[0,1,2].filter(x=>Math.abs(x-battle.prow)<=1):[0,1,2].filter(x=>Math.abs(x-prev)===1);
+    if(i===0&&Math.random()<0.6){const c2=cand.filter(x=>x!==battle.prow);if(c2.length)cand=c2;}   // さいしょは プレイヤーのいる行を ねらいやすい
     const r=cand[(Math.random()*cand.length)|0];safe.push(r);prev=r;
   }
   battle.attacks.push({kind:'knightspin',phase:'draw',t:0,i:0,safe,fx:[],seed:Math.random()*6,sp:opt.sp,sc:opt.sc,mul:opt.mul,gap:opt.gap});
@@ -5825,7 +5919,7 @@ function updateWizardRuneAtk(a,dt){
   if(a.t>=wrStart(n-1)+WR_LEAD+WR_POP){a.dead=true;battle.spawnT=a.gap||0.3;return;}
   battle.enemyPose=p;
 }
-const WB_CHARGE=0.50,WB_WARN1=0.70,WB_WARN=0.48,WB_END=0.30,WB_MUL=1.3;   // かみなり：1列を まるごと うつ。2発めは ほかの列
+const WB_CHARGE=0.50,WB_WARN1=0.85,WB_WARN=0.75,WB_END=0.30,WB_MUL=1.1;   // かみなり：1列を まるごと うつ。2発めは ほかの列
 function spawnWizardBolt(R,opt){
   opt=opt||{};R=R*(opt.sp||1);   // sp>1 のとき わざが はやく進むので、のこり時間に よゆうができる
   const prog=battle.dodgeT/DODGE_DUR;
@@ -9076,6 +9170,11 @@ function drawSpecialFx(tileX,tileY,TW,TH){
       if(a.phase==='warn'){
         const col=a.cols[a.i];
         for(let r=0;r<3;r++)warnCell(tileX(col),tileY(r),TW,TH,pulse,true,WARN_WAVE);
+        if(a.cols[a.i+1]!==undefined){   // つぎに うつ列を うすく よこく（先読みできる）
+          const nx=tileX(a.cols[a.i+1]);
+          ctx.fillStyle='rgba(255,230,120,0.16)';
+          for(let r=0;r<3;r++){ctx.fillRect(nx,tileY(r),TW,TH);uBox(nx/U-1,tileY(r)/U-1,TW/U+2,TH/U+2,'rgba(255,230,120,0.55)');}
+        }
         ctx.fillStyle='rgba(60,30,90,'+(0.25+0.25*pulse)+')';ctx.fillRect(tileX(col),tileY(0)-70,TW,66);   // うえに 雷雲
         uText('！！',(tileX(col)+TW/2)/U,(tileY(0)-48)/U,14,'#ff2a2a','center','#3a0000');
       }
