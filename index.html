@@ -165,27 +165,27 @@ const G={mode:'dungeon',time:0,msg:null,msgT:0,started:false,floor:1,clearT:0};
 // bpm: テンポ / notes: ノーツ数 / ka: 青(カ)率 / doubles: 16分連打率 / window: 判定猶予(秒)
 const MOVE_DB={
   'きあいパンチ':{name:'きあいパンチ',power:6,  sp:0,  color:'#ffe08a',icon:'●',
-                bpm:90, notes:8,  ka:0.10,doubles:0.00,window:0.30,diff:'EASY',
+                bpm:100, notes:4,  ka:0.10,doubles:0.00,window:0.30,diff:'EASY',
                 desc:'きほんの こうげき'},
   'きあいのいっぱつ':  {name:'きあいのいっぱつ',  power:14, sp:4,  color:'#ff8a4d',icon:'🔥',
-                bpm:110,notes:13, ka:0.20,doubles:0.10,window:0.25,diff:'NORMAL',
+                bpm:112,notes:8, ka:0.20,doubles:0.10,window:0.25,diff:'NORMAL',
                 desc:'きあいパンチの きょうかばん'},
   'シャイニング':  {name:'シャイニング',  power:18, sp:8,  color:'#ffe14d',icon:'⚡',
-                bpm:120,notes:21, ka:0.32,doubles:0.18,window:0.22,diff:'NORMAL',
+                bpm:120,notes:14, ka:0.42,doubles:0.2,window:0.22,diff:'NORMAL',
                 randTarget:true,desc:'こうげきするが てき ランダム'},
   'なぎはらい':{name:'なぎはらい',power:20, sp:12, color:'#9be8b8',icon:'🌪',
-                bpm:110,notes:26, ka:0.42,doubles:0.26,window:0.16,diff:'HARD',
+                bpm:114,notes:19, ka:0.42,doubles:0.26,window:0.16,diff:'HARD',
                 oni:{hard:0.12,mid:0.40,speed:150,pj:0.045,gj:0.085},   // hard=16分の高速パターン率／mid=8分中心のパターン率（残りはやさしい）
                 all:true,desc:'てきぜんいんに ダメージ'},
   'りゅうせい':{name:'りゅうせい',power:35, sp:25, color:'#7fe4ff',icon:'❄',
-                bpm:118,notes:28, ka:0.5,doubles:0.38,window:0.16,diff:'HARD',   // 少しやさしく（テンポ・ノーツ数を下げ、判定を広げ、連打を軽く）
+                bpm:118,notes:22, ka:0.5,doubles:0.38,window:0.16,diff:'HARD',   // 少しやさしく（テンポ・ノーツ数を下げ、判定を広げ、連打を軽く）
                 oni:{hard:0.18,mid:0.40,speed:158,pj:0.046,gj:0.085,soft:true},
                 desc:'きあいのいっぱつの きょうかばん'},
   // 必殺技：コストゲージがMAX（cost_attack_6_6）のときだけ、「たたかう」を選ぶと これだけが出る。SPは使わない。
   // いりょくは固定：「りゅうせい」を持っていれば 60／持っていなければ 30（startAttack で決める）
   // むずかしさは なぎはらい と おなじ
   'アグライア':{name:'アグライア',power:30, sp:0, color:'#ffe14d',icon:'★',
-                bpm:104,notes:24, ka:0.42,doubles:0.26,window:0.18,diff:'HARD',   // なぎはらいより 少しやさしく
+                bpm:104,notes:16, ka:0.42,doubles:0.26,window:0.18,diff:'HARD',   // なぎはらいより 少しやさしく
                 oni:{hard:0.08,mid:0.36,speed:145,pj:0.050,gj:0.092,soft:true},
                 desc:'ひっさつわざ'},
 };
@@ -198,7 +198,7 @@ const ITEM_DB={
   'ハンバーガー':{kind:'heal', value:30, color:'#7fd9ff', icon:'💧'},
   'マナキット':  {kind:'sp',   value:10, color:'#feb103', icon:'✨'},
   'マナキットS':  {kind:'sp',   value:25, color:'#ffd84d', icon:'⭐'},
-  'ホルミシス':  {kind:'holm', dmg:10, heal:20, turns:2, value:10, color:'#7dffb0', icon:'🧪'},   // 戦闘専用：使うと即 dmg ダメージ。つぎの turns ターン、ターン開始時に HP heal 回復。シールド・かんしゃくと重ねがけ不可
+  'ホルミシス':  {kind:'holm', dmg:10, heal:25, turns:2, value:10, color:'#7dffb0', icon:'🧪'},   // 戦闘専用：使うと即 dmg ダメージ。つぎの turns ターン、ターン開始時に HP heal 回復。シールド・かんしゃくと重ねがけ不可
   'クッキー':    {kind:'hpsp', hp:10, sp:10, value:10, color:'#e8b060', icon:'🍪'},   // HPとSPを同時に回復（hp / sp の数字で調整）
   'シールド':    {kind:'shield',value:6, color:'#7fd9ff', icon:'🛡️'},   // 戦闘専用：そのターン、受けるダメージ-6。使ってもターンは進まない。かんしゃくと重ねがけ不可
   'カウンター':  {kind:'counter',value:2, color:'#ffb347', icon:'⚔️'},   // 戦闘専用：value ターンのあいだ（回避ターン value 回ぶん）、パリィに成功すると 本来うけるはずだったダメージを 相手に与える。使ってもターンは進まない。シールド・かんしゃく・ホルミシスと重ねがけ不可
@@ -2443,16 +2443,16 @@ function preloadEnemyImgs(){
 const ENEMY_DB={
   slime:  {name:'ルル',  hp:19, atk:4, color:'#6ee7a8', dark:'#2f9e68', img:'slime.png', shape:'slime',  atkCells:1, targetBias:0.20},
   bat:    {name:'セイバット',  hp:24, atk:4, color:'#c084fc', dark:'#7c3aed', img:'bat.png', shape:'bat',    atkCells:2, targetBias:0.30, pattern:'bat'},
-  golem:  {name:'オプティパス',  hp:34, atk:5, color:'#a5b4fc', dark:'#4f46e5', img:'golem.png', shape:'golem',  atkCells:3, targetBias:0.25, pattern:'golem'},
+  golem:  {name:'オプティパス',  hp:50, atk:6, color:'#a5b4fc', dark:'#4f46e5', img:'golem.png', shape:'golem',  atkCells:3, targetBias:0.25, pattern:'golem'},
   ghost:  {name:'プラレー',  hp:28, atk:5, color:'#b8e8ff', dark:'#3a7a9e', img:'ghost.png', shape:'ghost',  atkCells:2, targetBias:0.55, pattern:'ghost'},
-  knight: {name:'キャンリング',    hp:36, atk:6, color:'#ffd18a', dark:'#8a5a1a', img:'knight.png', shape:'knight', atkCells:3, targetBias:0.40, pattern:'knight'},
-  wizard: {name:'アズリエル',hp:39, atk:7, color:'#e0a5ff', dark:'#6a1f9e', img:'wizard.png', shape:'wizard', atkCells:4, targetBias:0.35, pattern:'wizard'},
-  bakeboom:{name:'バケブーム',hp:41, atk:6, color:'#ff9a5a', dark:'#9a3a12', img:'bake.png', shape:'golem', atkCells:2, targetBias:0.40, pattern:'bakeboom'},   // 11F〜14F：爆弾を2つ投げる
+  knight: {name:'キャンリング',    hp:35, atk:4, color:'#ffd18a', dark:'#8a5a1a', img:'knight.png', shape:'knight', atkCells:3, targetBias:0.40, pattern:'knight'},
+  wizard: {name:'アズリエル',hp:37, atk:5, color:'#e0a5ff', dark:'#6a1f9e', img:'wizard.png', shape:'wizard', atkCells:4, targetBias:0.35, pattern:'wizard'},
+  bakeboom:{name:'バケブーム',hp:39, atk:6, color:'#ff9a5a', dark:'#9a3a12', img:'bake.png', shape:'golem', atkCells:2, targetBias:0.40, pattern:'bakeboom'},   // 11F〜14F：爆弾を2つ投げる
 };
-const BOSS_DB={name:'MPLの首領',hp:700,atk:14,color:'#f0a5ff',dark:'#7c1fbe',img:'boss.png',imgY:-6,shape:'knight',atkCells:5,targetBias:0.45,isBoss:true,pattern:'boss'};
+const BOSS_DB={name:'MPLの首領',hp:999,atk:14,color:'#f0a5ff',dark:'#7c1fbe',img:'boss.png',imgY:-6,shape:'knight',atkCells:5,targetBias:0.45,isBoss:true,pattern:'boss'};
 /* 中ボス「クマティア」（10F確定）。通常の敵とは別枠なので ふつうには出てこない。
    img … 画像ファイル名 ／ imgScale・imgY で大きさ・位置の微調整 ／ hp・atk・exp で強さ調整 */
-const MIDBOSS_DB={name:'クマティア',hp:250,atk:10,exp:40,color:'#bfeaff',dark:'#3a78a8',img:'kumatia.png',shape:'knight',atkCells:3,targetBias:0.4,mid:true,pattern:'kumatia'};
+const MIDBOSS_DB={name:'クマティア',hp:350,atk:10,exp:40,color:'#bfeaff',dark:'#3a78a8',img:'kumatia.png',shape:'knight',atkCells:3,targetBias:0.4,mid:true,pattern:'kumatia'};
 
 /* 停電部屋（燭台の大食堂）で 灯りが消えたときだけ あらわれる敵「クビ・ガリ」。ふつうの出現表（enemyPool）には入らない。
    img … kubigari.png ／ imgScale・imgY で大きさ・位置の微調整 ／ hp・atk は固定（どの階でも同じ。fixed:true）／ solo … 2匹同時バトルにしない
@@ -2523,7 +2523,7 @@ const CHEST_COUNT_MIN=2, CHEST_COUNT_MAX=3;
 const CHEST_TABLES=[
   {from:1, to:5,  w:{'ホルミシス':10,'クッキー':7,'カウンター':3,'チョコケーキ':55,'マナキット':25}},
   {from:6, to:10, w:{'ホルミシス':5,'カウンター':5,'チョコケーキ':35,'かんしゃく':5,'シールド':5,'ハンバーガー':10,'マナキット':30,'マナキットS':5,'クッキー':8}},
-  {from:11,to:99, w:{'ホルミシス':7,'カウンター':8,'チョコケーキ':40,'かんしゃく':5,'シールド':5,'ハンバーガー':20,'マナキット':10,'マナキットS':10,'クッキー':5}},  
+  {from:11,to:99, w:{'ホルミシス':7,'カウンター':8,'チョコケーキ':35,'かんしゃく':10,'シールド':5,'ハンバーガー':20,'マナキット':10,'マナキットS':10,'クッキー':5}},  
 ];
 function rollChestItem(floor){
   const t=CHEST_TABLES.find(r=>floor>=r.from&&floor<=r.to)||CHEST_TABLES[CHEST_TABLES.length-1];
@@ -4656,7 +4656,7 @@ const TAIKO_SPEED=340;
 function startAttack(moveName){
   let m=MOVE_DB[moveName];
   if(moveName===AGLAIA){   // アグライア：いりょく固定（りゅうせい持ち=60／なし=30）。ゲージは使いきる
-    m=Object.assign({},m,{power:player.moves.includes('りゅうせい')?60:30});
+    m=Object.assign({},m,{power:player.moves.includes('りゅうせい')?100:50});
     battle.costLv=0;battle.parryN=0;
   }
   battle.curMove=m;
@@ -7523,7 +7523,7 @@ function itemDescText(k){
   const it=ITEM_DB[k];
   if(it.kind==='rage')return 'このターン ダメージ1.5ばい／うけるダメージ2ばい';
   if(it.kind==='shield')return 'このターン うけるダメージが '+it.value+' へる';
-  if(it.kind==='counter')return 'つぎの '+it.value+'ターン パリィすると うけるダメージを あいてに あたえる';
+  if(it.kind==='counter')return 'つぎの '+it.value+'ターン パリィすると ダメージをはねかえす';
   if(it.kind==='hpsp')return 'HPと SPを '+it.hp+' ずつ かいふくする';
   if(it.kind==='holm')return 'つかうと '+it.dmg+'ダメージ／つぎの'+it.turns+'ターン はじめに HP'+it.heal+'かいふく';
   return it.kind==='heal'?'HPを '+it.value+' かいふくする':(it.kind==='sp'?'SPを '+it.value+' かいふくする':'さいだいHPが '+it.value+' ふえる');
