@@ -219,13 +219,13 @@ const player={
   gx:1,gy:1,x:0,y:0,ox:0,oy:0,tgx:0,tgy:0,
   moving:false,moveT:0,moveSpd:0.135,
   fx:1,fy:0,
-  hp:45,maxHp:45,
-  sp:50,maxSp:50,
+  hp:60,maxHp:60,
+  sp:60,maxSp:60,
   lv:1,exp:0,
   up:{hp:1,sp:1,atk:1,g:1},
   moves:['きあいパンチ'],
   moveLv:{},
-  items:{'チョコケーキ':2},
+  items:{'チョコケーキ':1},
   anim:0,
 };
 
@@ -2449,7 +2449,7 @@ const ENEMY_DB={
   wizard: {name:'アズリエル',hp:37, atk:5, color:'#e0a5ff', dark:'#6a1f9e', img:'wizard.png', shape:'wizard', atkCells:4, targetBias:0.35, pattern:'wizard'},
   bakeboom:{name:'バケブーム',hp:39, atk:6, color:'#ff9a5a', dark:'#9a3a12', img:'bake.png', shape:'golem', atkCells:2, targetBias:0.40, pattern:'bakeboom'},   // 11F〜14F：爆弾を2つ投げる
 };
-const BOSS_DB={name:'MPLの首領',hp:999,atk:14,color:'#f0a5ff',dark:'#7c1fbe',img:'boss.png',imgY:-6,shape:'knight',atkCells:5,targetBias:0.45,isBoss:true,pattern:'boss'};
+const BOSS_DB={name:'MPLの首領',hp:999,atk:19,color:'#f0a5ff',dark:'#7c1fbe',img:'boss.png',imgY:-6,shape:'knight',atkCells:5,targetBias:0.45,isBoss:true,pattern:'boss'};
 /* 中ボス「クマティア」（10F確定）。通常の敵とは別枠なので ふつうには出てこない。
    img … 画像ファイル名 ／ imgScale・imgY で大きさ・位置の微調整 ／ hp・atk・exp で強さ調整 */
 const MIDBOSS_DB={name:'クマティア',hp:350,atk:10,exp:40,color:'#bfeaff',dark:'#3a78a8',img:'kumatia.png',shape:'knight',atkCells:3,targetBias:0.4,mid:true,pattern:'kumatia'};
@@ -4656,7 +4656,7 @@ const TAIKO_SPEED=340;
 function startAttack(moveName){
   let m=MOVE_DB[moveName];
   if(moveName===AGLAIA){   // アグライア：いりょく固定（りゅうせい持ち=60／なし=30）。ゲージは使いきる
-    m=Object.assign({},m,{power:player.moves.includes('りゅうせい')?100:50});
+    m=Object.assign({},m,{power:player.moves.includes('りゅうせい')?125:50});
     battle.costLv=0;battle.parryN=0;
   }
   battle.curMove=m;
@@ -9770,7 +9770,7 @@ const touchControls=document.getElementById('touchControls');
 const isTouchDevice=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
 /* ========== デバッグ開始（⚙️ → ID入力）==========
    9F・Lv6・技（9Fまでの分）・ステ振り（攻撃2・ガード3）の状態で始める */
-const DEBUG_ID='9sayakadaisuki';
+const DEBUG_ID='966ベンゼンは私やん';
 const DEBUG_FLOOR=10, DEBUG_LV=9;
 const DEBUG_HP_PTS=3, DEBUG_ATK_PTS=4, DEBUG_G_PTS=4;
 function setupDebugRun(){
